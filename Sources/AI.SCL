@@ -1,0 +1,250 @@
+TYPE AI_CFG
+  STRUCT
+//    ID : WORD;
+//    Timestamp : DT;
+    Bipolar : BOOL;
+    Sim : BOOL;
+    Force : BOOL;
+    LoEn : BOOL;
+    LoLoEn : BOOL;
+    HiEn : BOOL;
+    HiHiEn : BOOL;
+    OutOfSer : BOOL := TRUE; // Alarm and warning out of service
+    AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    LoLim : REAL;
+    HiLim : REAL;
+    Cutoff : REAL; // Zero scale cutoff
+    Lo : REAL;
+    LoLo : REAL;
+    Hi : REAL;
+    HiHi : REAL;
+    ForceVal : REAL;
+    SampleTime : INT := 100;
+    FilterTime : REAL;
+    AlarmDelay : DINT := L#1;
+    WarningDelay : DINT := L#1;
+    MinAlarmTime : DINT := L#2000;
+    MinWarningTime : DINT := L#2000;
+    AlarmHyst : REAL; // Hysteresis to disabling alarm/wrn condition
+    WarningHyst : REAL;
+  END_STRUCT;
+END_TYPE
+
+TYPE AI_STA
+  STRUCT
+    Raw : INT;
+    RawVal : REAL;
+    Val : REAL;
+    LoLim : REAL;
+    HiLim : REAL;
+    Err : BOOL;
+    Force : BOOL;
+    Sim : BOOL;
+    Alm : BOOL;  // Alarm
+    UnackAlm : BOOL;
+    NotAlm : BOOL; // Alarm and warnings disabled
+    Wrn : BOOL; // Warning
+    UnackWrn : BOOL;
+    Lo : BOOL;
+    Hi : BOOL;
+    LoLo : BOOL;
+    HiHi : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE AI_IF
+  STRUCT
+    STA : AI_STA;
+    Ack : BOOL; // Variable will reset itself!
+    SuppressAlm : BOOL;
+  END_STRUCT
+END_TYPE
+
+FUNCTION_BLOCK AI_FB
+  VAR_INPUT
+    AckIn : BOOL;
+    RawIn : INT;
+    SimIn : REAL;
+  END_VAR
+  VAR_OUTPUT
+    OUT : REAL;
+  END_VAR
+  VAR_IN_OUT
+    CFG : AI_CFG;
+    Interface : AI_IF;
+  END_VAR
+  VAR
+    FilteredIn : REAL;
+    FOFilter : LEAD_LAG;
+    AlarmTimer : TON;
+    WarningTimer : TON;
+    AlarmStep : INT;
+    WarningStep : INT;
+    LastAck : BOOL;
+  END_VAR
+  VAR_TEMP
+    STA : AI_STA;
+    TempVal : REAL;
+    Ack : BOOL;
+  END_VAR
+  BEGIN
+    // Init
+    STA := Interface.STA;
+    TempVal := 0.0;
+    STA.Err := FALSE;
+    
+    // Resetting unacknowledged alarm on rising edge only to prevent continuos resets
+    Ack := (AckIn AND NOT LastAck) OR Interface.Ack OR CFG.AutoAck OR CFG.OutOfSer;
+    IF Ack THEN
+      STA.UnackAlm := FALSE;
+      STA.UnackWrn := FALSE;
+    END_IF;
+    LastAck := AckIn;
+    Interface.Ack := FALSE; 
+    
+    IF CFG.Force THEN
+      TempVal := CFG.ForceVal;
+    ELSIF CFG.Sim THEN
+      TempVal := SimIn;
+    ELSE
+      STA.Err := "SCALE"(
+        IN := RawIn,
+        HI_LIM := CFG.HiLim,
+        LO_LIM := CFG.LoLim,
+        BIPOLAR := CFG.Bipolar,
+        OUT := TempVal
+      ) <> 0;
+      STA.RawVal := TempVal;
+      
+      FOFilter.GAIN := 1.0;
+      FOFilter.LG_TIME := CFG.FilterTime;
+      FOFilter.SAMPLE_T := CFG.SampleTime;
+      IF FOFilter.LG_TIME <> 0.0 AND FOFilter.Sample_T > 0 THEN
+        FOFilter(IN := TempVal);
+        TempVal := FOFilter.OUT;
+      END_IF;
+    END_IF;
+    
+    IF TempVal < CFG.LoLim + CFG.Cutoff THEN
+      TempVal := CFG.LoLim;
+    END_IF;
+    
+    // Alarms
+    // Alarm system inspired by ISA 18.2
+    
+    STA.NotAlm := Interface.SuppressAlm OR CFG.OutOfSer;
+    IF STA.NotAlm THEN
+      STA.Wrn := FALSE;
+      STA.Alm := FALSE;
+      STA.UnackAlm := FALSE;
+      STA.UnackWrn := FALSE;
+      AlarmStep := 1;
+      AlarmTimer.IN := FALSE;
+      WarningTimer.IN := FALSE;
+      WarningStep := 1;  
+      STA.Lo := FALSE;
+      STA.Hi := FALSE;
+      STA.LoLo := FALSE;
+      STA.HiHi := FALSE;
+    ELSE  
+      
+      CASE AlarmStep OF
+        0: // Init
+          AlarmTimer.IN := FALSE;
+          AlarmStep := 1;
+        1: // Normal
+          STA.LoLo := CFG.LoLoEn AND (TempVal <= CFG.LoLo);
+          STA.HiHi := CFG.HiHiEn AND (TempVal >= CFG.HiHi);
+          
+          AlarmTimer.IN := STA.Err OR STA.LoLo OR STA.HiHi;
+          AlarmTimer.PT := DINT_TO_TIME(CFG.AlarmDelay);
+          
+          IF AlarmTimer.Q THEN
+            AlarmStep := 2;
+            AlarmTimer.IN := FALSE;
+            STA.Alm := TRUE;
+            STA.UnackAlm := TRUE;
+          END_IF;
+        2: // Waiting min alarm time
+          // Alarms so as error states are frozen in this step  
+          AlarmTimer.PT := DINT_TO_TIME(CFG.MinAlarmTime);
+          AlarmTimer.IN := TRUE;
+          
+          STA.Err := Interface.STA.Err;
+          
+          IF AlarmTimer.Q THEN
+            AlarmTimer.IN := FALSE;
+            AlarmStep := 3;
+          END_IF;
+        3: // Alarm
+          IF STA.Err THEN
+            STA.LoLo := FALSE;
+            STA.HiHi := FALSE;
+          ELSE
+            STA.LoLo := CFG.LoLoEn AND (TempVal <= CFG.LoLo + CFG.AlarmHyst);
+            STA.HiHi := CFG.HiHiEn AND (TempVal >= CFG.HiHi - CFG.AlarmHyst);
+          END_IF;
+          
+          IF NOT (STA.Err OR STA.LoLo OR STA.HiHi) THEN
+            STA.Alm := FALSE;
+            AlarmStep := 1;
+          END_IF;            
+      ELSE
+        AlarmStep := 0;
+      END_CASE;
+      
+      // Processing warnings  
+      IF STA.Alm THEN
+        WarningStep := 1;
+        WarningTimer.IN := FALSE;
+        STA.Wrn := FALSE;
+        STA.Lo := FALSE;
+        STA.Hi := FALSE;
+      ELSE
+        CASE WarningStep OF
+          0: // Init
+            WarningTimer.IN := FALSE;
+            WarningStep := 1;
+          1: // Normal
+            STA.Lo := CFG.LoEn AND (TempVal <= CFG.Lo);
+            STA.Hi := CFG.HiEn AND (TempVal >= CFG.Hi);
+            WarningTimer.PT := DINT_TO_TIME(CFG.WarningDelay);
+            WarningTimer.IN := STA.Lo OR STA.Hi;
+            IF WarningTimer.Q THEN
+              STA.UnackWrn := TRUE;
+              WarningTimer.IN := FALSE;
+              WarningStep := 2;
+            END_IF;
+          2: // Waiting min alarm time
+            WarningTimer.PT := DINT_TO_TIME(CFG.MinWarningTime);
+            WarningTimer.IN := TRUE;
+            IF WarningTimer.Q THEN
+              WarningTimer.IN := FALSE;
+              WarningStep := 3;
+            END_IF;
+          3: // Active varning state
+            STA.Lo := CFG.LoEn AND (TempVal <= CFG.Lo + CFG.WarningHyst);
+            STA.Hi := CFG.HiEn AND (TempVal >= CFG.Hi - CFG.WarningHyst);
+            IF NOT (STA.Lo OR STA.Hi) THEN
+              STA.Wrn := FALSE;
+              WarningStep := 1;
+            END_IF;
+        ELSE
+          WarningStep := 0;
+        END_CASE;
+      END_IF;    
+    END_IF;
+    AlarmTimer();
+    WarningTimer();
+    
+    OUT := TempVal;
+    
+    STA.Raw := RawIn;
+    STA.Val := TempVal;
+    STA.LoLim := CFG.LoLim;
+    STA.HiLim := CFG.HiLim;
+    STA.Force := CFG.Force;
+    STA.Sim := CFG.Sim;
+    
+    Interface.STA := STA;             
+END_FUNCTION_BLOCK

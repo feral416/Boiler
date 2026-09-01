@@ -1,0 +1,164 @@
+TYPE DI_CFG
+  STRUCT
+//    ID : WORD;
+    Invert : BOOL;
+    Sim : BOOL; // Simulation
+    Force : BOOL;
+    OutOfSer : BOOL := TRUE; // Out of service alarm
+    AutoAck : BOOL;
+    AlarmSP : BOOL := TRUE;
+    ForceVal : BOOL;
+    MinOnTime : DINT := L#1;
+    MinOffTime : DINT := L#1;
+    AlarmDelayTime : DINT := L#1;
+    MinAlarmTime : DINT := L#2000; // ms
+  END_STRUCT;
+END_TYPE
+
+TYPE DI_STA
+  STRUCT
+    RawVal : BOOL;
+    Val : BOOL;
+    Sim : BOOL;
+    Force : BOOL;
+    Alm : BOOL;
+    UnackAlm : BOOL;
+    NotAlm : BOOL;
+    Bit7 : BOOL;
+    Bit8 : BOOL;
+    Bit9 : BOOL;
+    Bit10 : BOOL;
+    Bit11 : BOOL;
+    Bit12 : BOOL;
+    Bit13 : BOOL;
+    Bit14 : BOOL;
+    Bit15 : BOOL;
+  END_STRUCT
+END_TYPE
+
+TYPE DI_IF
+  STRUCT
+    STA : DI_STA;
+    Ack : BOOL; // External ack resets itself!
+    SuppressAlm : BOOL;
+  END_STRUCT
+END_TYPE
+
+FUNCTION_BLOCK DI_FB
+  VAR_INPUT
+    IN : BOOL;
+    SimIn : BOOL;
+    AckIn : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    OUT : BOOL;
+  END_VAR
+  VAR_IN_OUT
+    CFG : DI_CFG;
+    Interface : DI_IF;
+  END_VAR
+  VAR_TEMP
+    STA : DI_STA;
+    Ack : BOOL;
+  END_VAR
+  VAR
+    FilterTimer : TON;
+    FilterStep : INT;
+    FilteredIn : BOOL;
+    LastAck : BOOL;
+    AlarmTimer : TON;
+    AlarmStep : INT;
+  END_VAR
+  
+  BEGIN
+    STA := Interface.STA;
+    
+    // Resetting on R edge
+    Ack := (AckIn AND NOT LastAck) OR Interface.Ack OR CFG.AutoAck;
+    IF Ack THEN
+      STA.UnackAlm := FALSE;
+    END_IF;
+    LastAck := AckIn;
+    Interface.Ack := FALSE; 
+      
+    FilterTimer.IN := TRUE;  
+    CASE FilterStep OF
+      0: // False state
+        FilterTimer.PT := DINT_TO_TIME(CFG.MinOffTime);
+        IF IN THEN
+          FilterStep := 1;
+          FilterTimer.IN := FALSE;
+        END_IF;
+        IF FilterTimer.Q THEN
+          FilteredIn := FALSE;
+        END_IF;
+      1: // True state
+        FilterTimer.PT := DINT_TO_TIME(CFG.MinOnTime);
+        IF NOT IN THEN
+          FilterStep := 0;
+          FilterTimer.IN := FALSE;
+        END_IF;
+        IF FIlterTimer.Q THEN
+          FilteredIn := TRUE;
+        END_IF;
+    ELSE
+      FilterStep := 0;
+    END_CASE;
+    FilterTimer();
+    
+    FilteredIn := FilteredIn XOR CFG.Invert;
+    
+    STA.Force := CFG.Force;
+    STA.Sim := CFG.Sim;
+    
+    IF CFG.Force THEN
+      OUT := CFG.ForceVal;
+    ELSIF CFG.Sim THEN
+      OUT := SimIn XOR CFG.Invert;
+    ELSE
+      OUT := FilteredIn;
+    END_IF;
+    
+    STA.RawVal := IN;
+    STA.Val := OUT;
+    
+    STA.NotAlm := Interface.SuppressAlm OR CFG.OutOfSer;    
+    IF STA.NotAlm THEN
+      STA.Alm := FALSE;
+      STA.UnackAlm := FALSE;
+      AlarmTimer.IN := FALSE;
+      AlarmStep := 1; 
+    ELSE
+      CASE AlarmStep OF
+        0: // Init
+          AlarmTimer.IN := FALSE;
+          AlarmStep := 1;
+        1: // Normal
+          AlarmTimer.IN := OUT = CFG.AlarmSP;
+          AlarmTimer.PT := DINT_TO_TIME(CFG.AlarmDelayTime);
+          IF AlarmTimer.Q THEN
+            AlarmStep := 2;
+            AlarmTimer.IN := FALSE;
+            STA.Alm := TRUE;
+            STA.UnackAlm := TRUE;
+          END_IF;
+        2: // Waiting for min time
+          AlarmTimer.IN := TRUE;
+          AlarmTimer.PT := DINT_TO_TIME(CFG.MinAlarmTime);
+          IF AlarmTimer.Q THEN
+            AlarmStep := 3;
+            AlarmTimer.IN := FALSE;
+          END_IF;
+        3: // Alarm state
+          STA.Alm := OUT = CFG.AlarmSP;
+          IF NOT STA.Alm THEN
+            AlarmStep := 1;
+          END_IF;
+      ELSE
+        AlarmStep := 0;
+      END_CASE;  
+    END_IF;        
+    AlarmTimer();
+    
+    Interface.STA := STA;    
+END_FUNCTION_BLOCK

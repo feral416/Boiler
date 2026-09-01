@@ -1,0 +1,166 @@
+FUNCTION_BLOCK DELAY
+  // FIFO ring buffer to simulate dead time
+  // delays output for Size-number of executions 
+  VAR_INPUT
+    In : REAL;
+    Reset : BOOL; // Reset fills array with input
+    DBlock : BLOCK_DB; // DB containing array
+    Offset : DINT; // Offset in DB to array
+    Size : INT; // Number of elements in the array
+  END_VAR
+  VAR_OUTPUT
+     Out : REAL;
+  END_VAR
+  VAR_TEMP
+    ByteAddr : DINT;
+  END_VAR
+  CONST
+    RealSize := 4;
+  END_CONST
+  VAR
+    Head : INT := 0;
+  END_VAR
+  BEGIN
+    // Input validation
+    IF Size <= 1 OR Offset < 0 OR BLOCK_DB_TO_WORD(DBlock) = 0 THEN
+      Out := In;
+      Head := 0;
+      RETURN;
+    END_IF;  
+    
+    IF Reset THEN
+      FOR Head := 0 TO (Size - 1) DO
+        ByteAddr := Offset + (Head * RealSize);
+        DBlock.DD[ByteAddr] := REAL_TO_DWORD(In);
+      END_FOR;
+      Head := 0;
+    END_IF;
+    
+    ByteAddr := Offset + (Head * RealSize);
+    Out := DWORD_TO_REAL(DBlock.DD[ByteAddr]);
+    DBlock.DD[ByteAddr] := REAL_TO_DWORD(In);
+    Head := Head + 1;
+    IF Head >= Size THEN
+      Head := 0;
+    END_IF;
+  
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK FOTD
+  // Simulates First Order Time Delay system.
+  // Delays input by Size-number of executions
+  // then lags it with time constant T.
+  // T has to be in same units as DeltaT
+  // To disable delay set Size or Offset to 0
+  // or leave DBlock empty. To disable lag set Gain to 0.
+  VAR_INPUT
+    In : REAL;
+    Reset : BOOL; // Reset fills array with input
+    DBlock : BLOCK_DB; // DB containing array
+    Offset : DINT; // Offset in DB to array
+    Size : INT; // Number of elements in the array
+    T : REAL; // Time constant of lag
+    DeltaT : INT; // Execution time interval
+    Gain : REAL; // Gain of lag
+  END_VAR
+  VAR_OUTPUT
+    Out : REAL; 
+  END_VAR
+  VAR
+    DeadTime : DELAY;
+    Lag : LEAD_LAG;
+  END_VAR
+  BEGIN
+    DeadTime(
+      In := In,
+      Reset := Reset,
+      DBlock := DBlock,
+      Offset := Offset,
+      Size := Size 
+    );
+    
+    IF Reset THEN
+      Lag.PREV_OUT := Gain * In;
+    END_IF;    
+    
+    Lag.GAIN := Gain;
+    Lag.LG_TIME := T;
+    IF Gain > 0.0 AND T > 0.0 AND DeltaT > 0 THEN
+      Lag(
+        In := DeadTime.Out,
+        SAMPLE_T := DeltaT
+      );
+      Out := Lag.OUT;
+    ELSE
+      Out := DeadTime.Out;
+    END_IF;    
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK DELAY_INPUT_BOOL 
+  // Simple delayed boolean output can be used as model
+  // for a shutoff valve or motor controlled with on/off signal
+  VAR_INPUT
+    IN : BOOL;
+    OnDelayTime : DINT; // ms
+    OffDelayTime : DINT; // ms
+    Force : BOOL; // Simulates fault
+    ForceVal : BOOL; 
+  END_VAR
+  VAR_OUTPUT
+    OUT : BOOL;
+  END_VAR
+  VAR
+    OnTimer : TON;
+    OffTimer : TOF;
+  END_VAR
+  BEGIN
+    OnTimer(IN := IN, PT := DINT_TO_TIME(OnDelayTime));
+    OffTimer(IN := OnTimer.Q, PT := DINT_TO_TIME(OffDelayTime));
+    IF Force THEN
+      OUT := ForceVal;
+    ELSE
+      OUT := OffTimer.Q;
+    END_IF;     
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK VFD_MOTOR_SIM
+  // Simulates VFD + MOTOR controlled by analog and discrete
+  // signals. Acceleration by linear ramp, deceleration ramp * gain
+  VAR_INPUT
+    FWD : BOOL;
+    SpeedSP : REAL;
+    MaxSpeed : REAL := 1000.0;
+    AccRate : REAL := 10.0; // Rot per cycle
+    DecRate : REAL := 5.0; //
+    ExtFault : BOOL; // External fault - TRUE - OK
+    SimFault : BOOL; 
+  END_VAR
+  VAR_OUTPUT
+    SpeedPV : REAL;
+    Fault : BOOL; // TRUE - OK
+  END_VAR
+  VAR
+    CurSpeed : REAL;
+  END_VAR
+  BEGIN
+    SpeedSP := LIMIT(MN := 0.0, IN := SpeedSP, MX := MaxSpeed);
+  
+    Fault := ExtFault AND NOT SimFault;
+    IF NOT Fault OR NOT FWD THEN
+      SpeedSp := 0.0;
+    END_IF;
+    
+    IF CurSpeed < SpeedSP THEN
+      CurSpeed := CurSpeed + AccRate;
+      IF CurSpeed > SpeedSP THEN
+        CurSpeed := SpeedSP;
+      END_IF;
+    ELSIF CurSpeed > SpeedSP THEN
+      CurSpeed := CurSpeed - DecRate;
+      IF CurSpeed < SpeedSP THEN
+        CurSpeed := SpeedSP;
+      END_IF;
+    END_IF;
+    
+    SpeedPV := LIMIT(MN := 0.0, IN := CurSpeed, MX := MaxSpeed);  
+END_FUNCTION_BLOCK

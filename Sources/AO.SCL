@@ -1,0 +1,67 @@
+TYPE AO_CFG
+  STRUCT
+//    ID : WORD;
+    HiLim : REAL;
+    LoLim : REAL;
+    ForceVal : INT;
+    SafeVal : INT;
+    Bipolar : BOOL; //Bipolar output
+    Force : BOOL;
+    Sim : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE AO_STA
+  STRUCT
+    RawVal : REAL;
+    Val : INT;
+    Force : BOOL;
+    Sim : BOOL;
+    UnscaleErr : BOOL;
+  END_STRUCT;
+END_TYPE
+
+FUNCTION_BLOCK AO_FB
+  VAR_INPUT
+    IN : REAL;
+  END_VAR
+  VAR_OUTPUT
+    OUT : INT;
+    SimOut : REAL;
+  END_VAR
+  VAR_IN_OUT
+    CFG : AO_CFG;
+    STA_IO : AO_STA;
+  END_VAR
+  VAR_TEMP
+    STA : AO_STA;
+  BEGIN
+    // Init
+    STA := STA_IO;
+    STA.UnscaleErr := FALSE;
+    
+    IF CFG.Force THEN
+      OUT := CFG.ForceVal;
+      SimOut := 0.0;
+    ELSIF CFG.Sim THEN
+      OUT := CFG.SafeVal;
+      SimOut := IN;
+    ELSE
+      STA.UnscaleErr := UNSCALE(
+        IN := IN,
+        LO_LIM := CFG.LoLim,
+        HI_LIM := CFG.HiLim,
+        BIPOLAR := CFG.Bipolar,
+        OUT := OUT
+      ) <> 0;     
+      SimOut := 0.0;
+    END_IF;
+    
+      STA.RawVal := IN;
+      STA.Val := OUT;
+      STA.Force := CFG.Force;
+      STA.Sim := CFG.Sim;
+      
+      STA_IO := STA;
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,17 @@
+FUNCTION BLEND_STATION : REAL
+  // Blends two inputs for ratio control.
+  // The more W the more SP dominates the output
+  // thus improving phase lag during transients.
+  VAR_INPUT
+    SP : REAL; // SP
+    PV : REAL; // PV
+    Ratio : REAL := 10.0 ; //  Ration factor
+    W : REAL := 0.5; // Wheighting factor 0.0-1.0
+  END_VAR
+  VAR_TEMP
+    LimitedW : REAL;
+  END_VAR
+  BEGIN
+    LimitedW := LIMIT(MN := 0.0, IN := W, MX := 1.0);
+    BLEND_STATION := Ratio * (LimitedW * SP + (1.0 - LimitedW) * PV);
+END_FUNCTION

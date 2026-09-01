@@ -1,0 +1,159 @@
+FUNCTION_BLOCK MAIN
+  VAR_INPUT
+    FirstCycle : BOOL;
+  END_VAR
+  VAR_TEMP
+  END_VAR
+  VAR
+    Ack : BOOL := FALSE;
+    Boiler1Controller : BOILER_CONTROL;
+    // DI
+    FDFanVFDFault1 : DI_FB;
+    IDFanVFDFault1 : DI_FB;
+    PumpVFDFault1 : DI_FB;
+    FlameSensor1 : DI_FB;
+    CircPumpVFDFault1 : DI_FB;
+    // DO
+    IgniterOut1 : DO_FB;
+    FDFanFWD1 : DO_FB;
+    IDFanFWD1 : DO_FB;
+    PumpFWD1 : DO_FB;
+    ShutoffGasValve1Opn1 : DO_FB;
+    ShutoffGasValve2Opn1 : DO_FB;
+    CircPumpFWD1 : DO_FB;
+    SafetyValve1 : DO_FB;
+  END_VAR
+  BEGIN
+    FDFanVFDFault1(
+      IN := FDFanVFDFault1Raw // IN: BOOL
+      ,SimIn := MODEL_DB.Boiler.BlowerFault // IN: BOOL
+      ,AckIn := Ack // IN: BOOL
+      ,CFG := CFG_DB.FDFanVFDFault1 // INOUT: STRUCT
+      ,Interface := IF_DB.FDFanVFDFault1 // INOUT: STRUCT
+    ); 
+    
+    IDFanVFDFault1(
+      IN := IDFanVFDFault1Raw // IN: BOOL
+      ,SimIn := MODEL_DB.Boiler.ExhausterFault // IN: BOOL
+      ,AckIn := Ack // IN: BOOL
+      ,CFG := CFG_DB.IDFanVFDFault1 // INOUT: STRUCT
+      ,Interface := IF_DB.IDFanVFDFault1 // INOUT: STRUCT
+    ); 
+    
+    PumpVFDFault1(
+      IN := PumpVFDFault1Raw // IN: BOOL
+      ,SimIn := MODEL_DB.Boiler.FeedPumpFault // IN: BOOL
+      ,AckIn := Ack // IN: BOOL
+      ,CFG := CFG_DB.PumpVFDFault1 // INOUT: STRUCT
+      ,Interface := IF_DB.PumpVFDFault1 // INOUT: STRUCT
+    ); 
+    
+    FlameSensor1(
+      IN := FlameSensor1Raw // IN: BOOL
+      ,SimIn := MODEL_DB.Boiler.FlameSensor // IN: BOOL
+      ,AckIn := Ack // IN: BOOL
+      ,CFG := CFG_DB.FlameSensor1 // INOUT: STRUCT
+      ,Interface := IF_DB.FlameSensor1 // INOUT: STRUCT
+    ); 
+    
+    CircPumpVFDFault1(
+      IN := CircPumpVFDFault1Raw // IN: BOOL
+      ,SimIn := MODEL_DB.CircPumpVFD.Fault // IN: BOOL // TODO : add output!
+      ,AckIn := Ack // IN: BOOL
+      ,CFG := CFG_DB.CircPumpVFDFault1 // INOUT: STRUCT
+      ,Interface := IF_DB.CircPumpVFDFault1 // INOUT: STRUCT
+    ); 
+     
+     Boiler1Controller(
+      FirstCycle := FirstCycle // IN: BOOL
+ //     ,ResetIn :=  // IN: BOOL
+ //     ,ExtStop :=  // IN: BOOL
+      ,SystemTimeDs := SystemTimeDs // IN: DINT
+      ,CFG := CFG_DB.Boiler1CFG // INOUT: STRUCT
+      ,PidIf := IF_DB.PidIF1 // INOUT: STRUCT
+      ,InterfaceIO := IF_DB.Boiler1IF // INOUT: STRUCT
+      ,FDFanVFDFault := IF_DB.FDFanVFDFault1 // INOUT: STRUCT
+      ,IDFanVFDFault := IF_DB.IDFanVFDFault1 // INOUT: STRUCT
+      ,PumpVFDFault := IF_DB.PumpVFDFault1 // INOUT: STRUCT
+      ,FlameSensor := IF_DB.FlameSensor1 // INOUT: STRUCT
+      ,HotWaterT := IF_DB.HotWaterT1
+      ,FlueGasT := IF_DB.FlueGasT1
+      ,AirF := IF_DB.AirF1
+      ,CombChambP := IF_DB.CombChambP1
+      ,WaterF := IF_DB.WaterF1
+      ,GasP := IF_DB.GasP1
+      ,BufferTankL := IF_DB.BufferTankL
+    ); 
+       (* := DBxxx.IgniterOut; // OUT: BOOL
+        := DBxxx.FDFanFWD; // OUT: BOOL
+        := DBxxx.IDFanFWD; // OUT: BOOL
+        := DBxxx.PumpFWD; // OUT: BOOL
+        := DBxxx.ShutoffGasValve1Opn; // OUT: BOOL
+        := DBxxx.ShutoffGasValve2Opn; // OUT: BOOL 
+      *)
+     
+     IgniterOut1(
+       IN := Boiler1Controller.IgniterOut // IN: BOOL
+       ,CFG := CFG_DB.IgniterOut1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.IgniterOut1 // INOUT: STRUCT
+     ); 
+     IgniterOut1Raw := IgniterOut1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.IgniterOn:= IgniterOut1.SimOut; // OUT: BOOL
+     
+     FDFanFWD1(
+       IN := Boiler1Controller.FDFanFWD // IN: BOOL
+       ,CFG := CFG_DB.FDFanFWD1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.FDFanFWD1 // INOUT: STRUCT
+     ); 
+     FDFanFWD1Raw := FDFanFWD1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.BlowerFWD:= FDFanFWD1.SimOut; // OUT: BOOL
+     
+     IDFanFWD1(
+       IN := Boiler1Controller.IDFanFWD // IN: BOOL
+       ,CFG := CFG_DB.IDFanFWD1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.IDFanFWD1 // INOUT: STRUCT
+     ); 
+     IDFanFWD1Raw := IDFanFWD1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.ExhausterFWD:= IDFanFWD1.SimOut; // OUT: BOOL
+     
+     PumpFWD1(
+       IN := Boiler1Controller.PumpFWD // IN: BOOL
+       ,CFG := CFG_DB.PumpFWD1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.PumpFWD1 // INOUT: STRUCT
+     ); 
+     PumpFWD1Raw := PumpFWD1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.FeedPumpFWD:= PumpFWD1.SimOut; // OUT: BOOL
+     
+     ShutoffGasValve1Opn1(
+       IN := Boiler1Controller.ShutoffGasValve1Opn // IN: BOOL
+       ,CFG := CFG_DB.ShutoffGasValve1Opn1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.ShutoffGasValve1Opn1 // INOUT: STRUCT
+     ); 
+     ShutoffGasValve1Opn1Raw := ShutoffGasValve1Opn1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.ShutoffGasVlv1Opn:= ShutoffGasValve1Opn1.SimOut; // OUT: BOOL
+     
+     ShutoffGasValve2Opn1(
+       IN := Boiler1Controller.ShutoffGasValve2Opn // IN: BOOL
+       ,CFG := CFG_DB.ShutoffGasValve2Opn1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.ShutoffGasValve2Opn1 // INOUT: STRUCT
+     ); 
+     ShutoffGasValve2Opn1Raw := ShutoffGasValve2Opn1.OUT; // OUT: BOOL
+     MODEL_DB.Boiler.ShutoffGasVlv2Opn:= ShutoffGasValve2Opn1.SimOut; // OUT: BOOL
+     
+     CircPumpFWD1(
+       IN := BOILER_HOUSE_100MS.CircPumpPC.FWD // IN: BOOL
+       ,CFG := CFG_DB.CircPumpFWD1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.CircPumpFWD1 // INOUT: STRUCT
+     ); 
+     CircPumpFWD1Raw := CircPumpFWD1.OUT; // OUT: BOOL
+     MODEL_DB.CircPumpVFD.FWD:= CircPumpFWD1.SimOut; // OUT: BOOL 
+     
+     SafetyValve1(
+       IN := Boiler1Controller.SafetyValveOut // IN: BOOL
+       ,CFG := CFG_DB.SafetyValve1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.SafetyValve1 // INOUT: STRUCT
+     ); 
+     SafetyValve1Raw := SafetyValve1.OUT; // OUT: BOOL
+     //MODEL_DB.Boiler.FeedPumpFWD:= SafetyValve1.SimOut; // OUT: BOOL
+      
+END_FUNCTION_BLOCK

@@ -1,0 +1,68 @@
+TYPE DO_CFG
+  STRUCT
+//    ID : WORD;
+    Force : BOOL;
+    ForceVal : BOOL;
+    Sim : BOOL;
+    Invert : BOOL;
+    SafeVal : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE DO_STA
+  STRUCT
+    RawVal : BOOL;
+    Val : BOOL;
+    Force : BOOL;
+    Sim : BOOL;
+    Bit4 : BOOL;
+    Bit5 : BOOL;
+    Bit6 : BOOL;
+    Bit7 : BOOL;
+    Bit8 : BOOL;
+    Bit9 : BOOL;
+    Bit10 : BOOL;
+    Bit11 : BOOL;
+    Bit12 : BOOL;
+    Bit13 : BOOL;
+    Bit14 : BOOL;
+    Bit15 : BOOL;
+  END_STRUCT;
+END_TYPE
+
+FUNCTION_BLOCK DO_FB
+  VAR_INPUT
+    IN : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    OUT : BOOL;
+    SimOut : BOOL;
+  END_VAR
+  VAR_IN_OUT
+    CFG : DO_CFG;
+    STA_IO : DO_STA;
+  END_VAR
+  VAR_TEMP
+    STA : DO_STA; // Local copy
+  END_VAR
+  BEGIN
+    STA := STA_IO;
+    
+    IF CFG.Force THEN
+      OUT := CFG.ForceVal;
+      SimOut := FALSE;
+    ELSIF CFG.Sim THEN
+      SimOut := IN XOR CFG.Invert;
+      OUT := CFG.SafeVal;
+    ELSE
+      OUT := IN XOR CFG.Invert;
+      SimOut := FALSE;
+    END_IF;
+    
+    STA.RawVal := IN XOR CFG.Invert;
+    STA.Val := OUT;
+    STA.Force := CFG.Force;
+    STA.Sim := CFG.Sim;
+    
+    STA_IO := STA;  
+END_FUNCTION_BLOCK

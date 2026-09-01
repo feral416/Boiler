@@ -1,0 +1,265 @@
+FUNCTION_BLOCK EVERY_100MS
+  VAR_INPUT
+    FirstCycle : BOOL;
+    Reset : BOOL;
+  END_VAR
+  VAR
+    Boiler1_PIDs : BOILER_PIDS;
+    BufferTankLC : TANK_LC;
+    CircPumpPC : CIRC_PUMP_PC;
+    // AI
+    HotWaterT1 : AI_FB;
+    FlueGasT1 : AI_FB;
+    AirF1 : AI_FB;
+    CombChambP1 : AI_FB;
+    WaterF1 : AI_FB;
+    GasP1 : AI_FB;
+    GasF1 : AI_FB;
+    GasT1 : AI_FB;
+    HotAirT1 : AI_FB;
+    HotAirP1 : AI_FB;
+    FDFanPV1 : AI_FB;
+    IDFanPV1 : AI_FB;
+    PumpPV1 : AI_FB;
+    AmbientT1 : AI_FB;
+    InputWaterT1 : AI_FB;
+    BufferTankL : AI_FB;
+    CircPumpP1 : AI_FB;
+    CircPumpPV1 : AI_FB;
+    // AO
+    ValvePosMV1 : AO_FB;
+    FDFanSpMV1 : AO_FB;
+    IDFanSpMV1 : AO_FB;
+    PumpSpMV1 : AO_FB;
+    BufferTankInVlvMV : AO_FB;
+    CircPumpSpMV1 : AO_FB;
+  END_VAR
+  BEGIN
+    //AI
+    HotWaterT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := HotWaterT1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.HotWaterT // IN: REAL
+      ,CFG := CFG_DB.HotWaterT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.HotWaterT1  // INOUT: STRUCT
+    ); 
+    
+    FlueGasT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := FlueGasT1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.FlueGasT // IN: REAL
+      ,CFG := CFG_DB.FlueGasT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.FlueGasT1  // INOUT: STRUCT
+    );
+    
+    AirF1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := AirF1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.AirF // IN: REAL
+      ,CFG := CFG_DB.AirF1 // INOUT: STRUCT
+      ,Interface :=IF_DB.AirF1  // INOUT: STRUCT
+    );
+    
+    CombChambP1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := CombChambP1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.CombChambP // IN: REAL
+      ,CFG := CFG_DB.CombChambP1 // INOUT: STRUCT
+      ,Interface :=IF_DB.CombChambP1  // INOUT: STRUCT
+    );
+    
+    WaterF1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := WaterF1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.WaterFeedF // IN: REAL
+      ,CFG := CFG_DB.WaterF1 // INOUT: STRUCT
+      ,Interface :=IF_DB.WaterF1  // INOUT: STRUCT
+    );
+    
+    GasP1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := GasP1Raw // IN: INT
+      ,SimIn := MODEL_DB.GasP // IN: REAL
+      ,CFG := CFG_DB.GasP1 // INOUT: STRUCT
+      ,Interface :=IF_DB.GasP1  // INOUT: STRUCT
+    );
+      
+    GasF1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := GasF1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.GasF // IN: REAL
+      ,CFG := CFG_DB.GasF1 // INOUT: STRUCT
+      ,Interface :=IF_DB.GasF1  // INOUT: STRUCT
+    ); 
+    
+    HotAirT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := HotAirT1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.HotAirT // IN: REAL
+      ,CFG := CFG_DB.HotAirT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.HotAirT1  // INOUT: STRUCT
+    ); 
+    
+    FDFanPV1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := FDFanPV1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.BlowerFanSpeed // IN: REAL
+      ,CFG := CFG_DB.FDFanPV1 // INOUT: STRUCT
+      ,Interface :=IF_DB.FDFanPV1  // INOUT: STRUCT
+    ); 
+    
+    IDFanPV1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := IDFanPV1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.ExhausterFanSpeed // IN: REAL
+      ,CFG := CFG_DB.IDFanPV1 // INOUT: STRUCT
+      ,Interface :=IF_DB.IDFanPV1  // INOUT: STRUCT
+    ); 
+    
+    PumpPV1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := PumpPV1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.WaterFeedPumpSpeed // IN: REAL
+      ,CFG := CFG_DB.PumpPV1 // INOUT: STRUCT
+      ,Interface :=IF_DB.PumpPV1  // INOUT: STRUCT
+    ); 
+    
+    AmbientT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := AmbientT1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.AmbientT // IN: REAL
+      ,CFG := CFG_DB.AmbientT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.AmbientT1  // INOUT: STRUCT
+    );
+    
+    InputWaterT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := InputWaterT1Raw // IN: INT
+      ,SimIn := MODEL_DB.BoilerInputwaterT // IN: REAL
+      ,CFG := CFG_DB.InputWaterT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.InputWaterT1  // INOUT: STRUCT
+    );
+    
+    GasT1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := GasT1Raw // IN: INT
+      ,SimIn := MODEL_DB.AmbientT // IN: REAL
+      ,CFG := CFG_DB.GasT1 // INOUT: STRUCT
+      ,Interface :=IF_DB.GasT1  // INOUT: STRUCT
+    );
+    
+    HotAirP1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := HotAirP1Raw // IN: INT
+      ,SimIn := MODEL_DB.Boiler.HotAirP // IN: REAL
+      ,CFG := CFG_DB.HotAirP1 // INOUT: STRUCT
+      ,Interface :=IF_DB.HotAirP1  // INOUT: STRUCT
+    );
+    
+    BufferTankL(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := BufferTankLRaw // IN: INT
+      ,SimIn := MODEL_DB.BufferTank.CurVolume // IN: REAL
+      ,CFG := CFG_DB.BufferTankL // INOUT: STRUCT
+      ,Interface :=IF_DB.BufferTankL  // INOUT: STRUCT
+    );
+    
+    CircPumpP1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := CircPumpP1Raw // IN: INT
+      ,SimIn := MODEL_DB.CircPumpSToP.Out // IN: REAL
+      ,CFG := CFG_DB.CircPumpP1 // INOUT: STRUCT
+      ,Interface :=IF_DB.CircPumpP1  // INOUT: STRUCT
+    );
+    
+    CircPumpPV1(
+      AckIn := Reset // IN: BOOL
+      ,RawIn := CircPumpPV1Raw // IN: INT
+      ,SimIn := MODEL_DB.CircPumpVFD.SpeedPV // IN: REAL
+      ,CFG := CFG_DB.CircPumpPV1 // INOUT: STRUCT
+      ,Interface :=IF_DB.CircPumpPV1  // INOUT: STRUCT
+    );
+    
+    // Contol
+    
+    Boiler1_PIDs(
+      Reset := FirstCycle // IN: BOOL
+      ,PidIF := IF_DB.PidIF1 // INOUT: STRUCT
+      ,PidCFG := CFG_DB.PidCFG1
+      ,HotWaterT := IF_DB.HotWaterT1 // INOUT: STRUCT
+      ,FlueGasT := IF_DB.FlueGasT1 // INOUT: STRUCT
+      ,AirF := IF_DB.AirF1 // INOUT: STRUCT
+      ,CombChambP := IF_DB.CombChambP1 // INOUT: STRUCT
+      ,WaterF := IF_DB.WaterF1 // INOUT: STRUCT
+      ,GasP := IF_DB.GasP1 // INOUT: STRUCT
+      ,GasF := IF_DB.GasF1
+     ); 
+    
+    BufferTankLC(FirstCycle := FirstCycle // IN: BOOL
+                  ,On := IF_DB.BufferTankLCOn // IN: BOOL
+                  ,CMD := CFG_DB.BufferTankSP // INOUT: STRUCT
+                  ,CFG := CFG_DB.BufferTankLC // INOUT: STRUCT
+                  ,Level := IF_DB.BufferTankL // INOUT: STRUCT
+                  ); 
+          
+    CircPumpPC(FirstCycle := FirstCycle // IN: BOOL
+                       ,On := IF_DB.CircPumpPCOn // IN: BOOL
+                       //,VFDFault :=  // IN: BOOL
+                       ,Pressure := IF_DB.CircPumpP1 // INOUT: STRUCT
+                       ,Level := IF_DB.BufferTankL // INOUT: STRUCT
+                       ,CMD := CFG_DB.CircPumpSP // INOUT: STRUCT
+                       ,CFG := CFG_DB.CircPumpPC // INOUT: STRUCT
+                       ); 
+         
+     BOILER_HOUSE_MODEL.MODEL_DB();
+     
+     //AO
+     ValvePosMV1(
+       IN := Boiler1_PIDs.ValvePosMV // IN: REAL
+       ,CFG := CFG_DB.ValvePosMV1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.ValvePosMV1 // INOUT: STRUCT
+     ); 
+     ValvePosMV1Raw := ValvePosMV1.OUT; // OUT: INT
+     MODEL_DB.Boiler.GasValvePos := ValvePosMV1.SimOut; // OUT: REAL
+     
+     FDFanSpMV1(
+       IN := Boiler1_PIDs.FDFanSpMV // IN: REAL
+       ,CFG := CFG_DB.FDFanSpMV1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.FDFanSpMV1 // INOUT: STRUCT
+     ); 
+     FDFanSpMV1Raw := FDFanSpMV1.OUT; // OUT: INT
+     MODEL_DB.Boiler.BlowerSP := FDFanSpMV1.SimOut; // OUT: REAL
+     
+     IDFanSpMV1(
+       IN := Boiler1_PIDs.IDFanSpMV // IN: REAL
+       ,CFG := CFG_DB.IDFanSpMV1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.IDFanSpMV1 // INOUT: STRUCT
+     ); 
+     IDFanSpMV1Raw := IDFanSpMV1.OUT; // OUT: INT
+     MODEL_DB.Boiler.ExhausterSP := IDFanSpMV1.SimOut; // OUT: REAL
+     
+     PumpSpMV1(
+       IN := Boiler1_PIDs.PumpSpMV // IN: REAL
+       ,CFG := CFG_DB.PumpSpMV1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.PumpSpMV1 // INOUT: STRUCT
+     ); 
+     PumpSpMV1Raw := PumpSpMV1.OUT; // OUT: INT
+     MODEL_DB.Boiler.FeedPumpSP := PumpSpMV1.SimOut; // OUT: REAL
+     
+     BufferTankInVlvMV(
+        IN := BufferTankLC.Out // IN: REAL
+        ,CFG := CFG_DB.BufferTankInVlvMV // INOUT: STRUCT
+       ,STA_IO := IF_DB.BufferTankInVlvMV // INOUT: STRUCT
+     ); 
+     BufferTankInVlvMVRaw := BufferTankInVlvMV.OUT; // OUT: INT
+     MODEL_DB.BufferTank.InValvePos := BufferTankInVlvMV.SimOut; // OUT: REAL
+     
+     CircPumpSpMV1(
+       IN := CircPumpPC.PumpSpeedSP // IN: REAL
+       ,CFG := CFG_DB.CircPumpSpMV1 // INOUT: STRUCT
+       ,STA_IO := IF_DB.CircPumpSpMV1 // INOUT: STRUCT
+     ); 
+     CircPumpSpMV1Raw := CircPumpSpMV1.OUT; // OUT: INT
+     MODEL_DB.CircPumpVFD.SpeedSP := CircPumpSpMV1.SimOut; // OUT: REAL
+      
+END_FUNCTION_BLOCK

@@ -1,0 +1,625 @@
+TYPE PID_SIMPLE_CFG
+  STRUCT
+    CYCLE : DINT := L#100;
+    GAIN : REAL := 0.5; // IN: REAL
+    TI : DINT := L#10000; // IN: TIME
+    TD : DINT := L#500; // IN: TIME
+    DEADB_W : REAL := 0.1; // IN: REAL
+    LMN_HLM : REAL := 500.0; // IN: REAL
+    LMN_LLM : REAL := 0.0; // IN: REAL
+  END_STRUCT;
+END_TYPE
+
+TYPE PID_SIMPLE_CMD
+  STRUCT
+    SP : REAL; // Auto SP
+    MSP : REAL; // Manual SP
+    ManOn : BOOL; // Manual mode on
+    CascadeOff : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE BOILER_PIDS_CFG
+  STRUCT
+    HotWaterTCCFG : PID_SIMPLE_CFG;
+    FlueGasTCCFG : PID_SIMPLE_CFG;
+    AirFCCFG : PID_SIMPLE_CFG;
+    CombChambPCCFG : PID_SIMPLE_CFG; // Negative pressure in combustion chamber
+    WaterFCCFG : PID_SIMPLE_CFG;
+  END_STRUCT
+END_TYPE
+
+TYPE BOILER_PIDS_IF
+  STRUCT
+    STA : STRUCT
+      Placeholder : WORD;
+    END_STRUCT;
+    CMD : STRUCT
+      HotWaterTCCMD : PID_SIMPLE_CMD;
+      FlueGasTCCMD : PID_SIMPLE_CMD;
+      AirFCCMD : PID_SIMPLE_CMD;
+      CombChambPCCMD : PID_SIMPLE_CMD;
+      WaterFCCMD : PID_SIMPLE_CMD;
+      AFR : REAL := 10.0; // Air-fuel ratio
+    END_STRUCT;   
+  END_STRUCT;
+END_TYPE
+
+FUNCTION_BLOCK BOILER_PIDS
+  VAR_INPUT
+    Reset : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    ValvePosMV : REAL;
+    FDFanSpMV : REAL;
+    IDFanSpMV : REAL;
+    PumpSpMV : REAL;
+  END_VAR
+  VAR_IN_OUT
+    PidIF : BOILER_PIDS_IF;
+    PidCFG : BOILER_PIDS_CFG;
+    // Sensors
+    HotWaterT : AI_IF;
+    FlueGasT : AI_IF;
+    AirF : AI_IF;
+    CombChambP : AI_IF;
+    WaterF : AI_IF;
+    GasP : AI_IF;
+    GasF : AI_IF;
+  END_VAR
+  VAR
+    HotWaterTC : CONT_C;
+    FlueGasTC : CONT_C;
+    AirFC : CONT_C;
+    CombChambPC : CONT_C; // Negative pressure in combustion chamber
+    WaterFC : CONT_C;
+  END_VAR
+  VAR_TEMP
+  END_VAR
+  BEGIN
+    // Cascade control of water temp with flue gas inner loop
+    HotWaterTC(COM_RST := Reset // IN: BOOL
+             ,MAN_ON := PidIf.CMD.HotWaterTCCMD.ManOn // IN: BOOL
+             ,CYCLE := T#100ms // IN: TIME
+             ,SP_INT := PidIf.CMD.HotWaterTCCMD.SP // IN: REAL
+             ,PV_IN := HotWaterT.STA.Val // IN: REAL
+             ,MAN := PidIf.CMD.HotWaterTCCMD.MSP // IN: REAL
+             ,GAIN := 3.7 // IN: REAL
+             ,TI := T#37.74s // IN: TIME
+             ,TD := T#0s // IN: TIME
+             ,DEADB_W := 0.1 // IN: REAL
+             ,LMN_HLM := 500.0 // IN: REAL
+             ,LMN_LLM := 0.0 // IN: REAL
+             ); 
+  
+    FlueGasTC(COM_RST := Reset // IN: BOOL
+                 ,MAN_ON := PidIF.CMD.FlueGasTCCMD.ManOn // IN: BOOL
+                 ,CYCLE := T#100ms // IN: TIME
+                 ,SP_INT := SEL(
+                   G := PidIf.CMD.FlueGasTCCMD.CascadeOff,
+                   IN0 := HotWaterTC.LMN,
+                   IN1 := PidIf.CMD.FlueGasTCCMD.SP
+                 )
+                 ,PV_IN := FlueGasT.STA.Val // IN: REAL
+                 ,MAN := PidIF.CMD.FlueGasTCCMD.MSP // IN: REAL
+                 ,GAIN := 0.35 // IN: REAL
+                 ,TI := T#14.63s // IN: TIME
+                 ,TD := T#2.77s // IN: TIME
+                 ,DEADB_W := 0.1 // IN: REAL
+                 ,LMN_HLM := 100.0 // IN: REAL
+                 ,LMN_LLM := 5.0 // IN: REAL
+                 ); 
+    ValvePosMV := FlueGasTC.LMN; // OUT: REAL
+    
+    // Air-fuel ratio control
+    IF PidIF.CMD.AirFCCMD.CascadeOff THEN
+      AirFC.SP_INT := PidIF.CMD.AirFCCMD.SP;
+    ELSE
+      AirFC.SP_INT := BLEND_STATION(
+        SP := 0.0,
+        PV := GasF.STA.Val,
+        Ratio := PidIf.CMD.AFR,
+        W := 0.0
+      );
+    END_IF;
+    
+    AirFC(COM_RST := Reset // IN: BOOL
+             ,MAN_ON := PidIF.CMD.AirFCCMD.ManOn // IN: BOOL
+             ,CYCLE := T#100ms // IN: TIME
+             ,PV_IN := AirF.STA.Val // IN: REAL
+             ,MAN := PidIF.CMD.AirFCCMD.MSP // IN: REAL
+             ,GAIN := 3.198 // IN: REAL
+             ,TI := T#4.29s // IN: TIME
+             ,TD := T#0.48s // IN: TIME
+             ,DEADB_W := 1 // IN: REAL
+             ,LMN_HLM := 1000.0 // IN: REAL
+             ,LMN_LLM := 30.0 // IN: REAL
+             ); 
+    FDFanSpMV := AirFC.LMN; // OUT: REAL
+    
+    CombChambPC(COM_RST := Reset // IN: BOOL
+             ,MAN_ON := PidIF.CMD.CombChambPCCMD.ManOn // IN: BOOL
+             ,CYCLE := T#100ms // IN: TIME
+             ,SP_INT := PidIF.CMD.CombChambPCCMD.SP // IN: REAL
+             ,PV_IN := CombChambP.STA.Val // IN: REAL
+             ,MAN := PidIF.CMD.CombChambPCCMD.MSP // IN: REAL
+             ,GAIN := -53.125 // IN: REAL
+             ,TI := T#19.47s // IN: TIME
+             ,TD := T#5.19s // IN: TIME
+             ,DEADB_W := 0.1 // IN: REAL
+             ,LMN_HLM := 1000.0 // IN: REAL
+             ,LMN_LLM := 100.0 // IN: REAL
+             ); 
+    IDFanSpMV := CombChambPC.LMN; // OUT: REAL
+    
+    WaterFC(COM_RST := Reset // IN: BOOL
+         ,MAN_ON := PidIF.CMD.WaterFCCMD.ManOn // IN: BOOL
+         ,CYCLE := T#100ms // IN: TIME
+         ,SP_INT := PidIF.CMD.WaterFCCMD.SP // IN: REAL
+         ,PV_IN := WaterF.STA.Val // IN: REAL
+         ,MAN := PidIF.CMD.WaterFCCMD.MSP // IN: REAL
+         ,GAIN := 9.2 // IN: REAL
+         ,TI := T#15.84s // IN: TIME
+         ,TD := T#3.59s // IN: TIME
+         ,DEADB_W := 0.1 // IN: REAL
+         ,LMN_HLM := 1000.0 // IN: REAL
+         ,LMN_LLM := 30.0 // IN: REAL
+         ); 
+    PumpSpMV := WaterFC.LMN; // OUT: REAL   
+END_FUNCTION_BLOCK
+
+TYPE BOILER_CFG
+  STRUCT
+    AlmMask : DWORD := 16#FFFFFFFF;
+    AFR : REAL; // Air-fuel ratio
+    PrePurgeSt : STRUCT
+      StepTime : DINT; // ds
+    END_STRUCT;
+    ReducePnFSt : STRUCT
+      PASP : REAL;
+      FASP : REAL;
+      MaxStepTime : DINT;
+    END_STRUCT;
+    IgnitionSt : STRUCT
+      MaxStepTime : DINT;
+    END_STRUCT;
+    BurningSt : STRUCT
+      StepTime : DINT;
+    END_STRUCT;
+    RunSt : STRUCT
+      HotWaterTC : PID_SIMPLE_CMD;
+      FlueGasTC : PID_SIMPLE_CMD;
+      AirFC : PID_SIMPLE_CMD;
+      WaterFC : PID_SIMPLE_CMD;
+      CombChambPC : PID_SIMPLE_CMD;
+    END_STRUCT;
+    PostPurgeSt : STRUCT
+      StepTime : DINT;
+    END_STRUCT; 
+  END_STRUCT;
+END_TYPE
+
+TYPE BOILER_HMI
+  STRUCT
+    CMD : WORD;
+    STA : WORD;
+    Step : INT;
+    StepTime : DINT;
+    ALM : DWORD;
+    StopCtx : STRUCT
+      Step : INT;
+      ALM : DWORD;
+      StepTime : DINT;
+    END_STRUCT;
+  END_STRUCT;
+END_TYPE
+
+TYPE BOILER_CMD
+  STRUCT
+    Start : BOOL;
+    Stop : BOOL;
+    Reset : BOOL;
+    Bit3 : BOOL;
+    Bit4 : BOOL;
+    Bit5 : BOOL;
+    Bit6 : BOOL;
+    Bit7 : BOOL;
+    Bit8 : BOOL;
+    Bit9 : BOOL;
+    Bit10 : BOOL;
+    Bit11 : BOOL;
+    Bit12 : BOOL;
+    Bit13 : BOOL;
+    Bit14 : BOOL;
+    Bit15 : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE BOILER_ALM
+  STRUCT
+    ExtStop : BOOL;
+    NextStepErr : BOOL;
+    FDFanVFDFault : BOOL;
+    IDFanVFDFault : BOOL;
+    PumpVFDFault : BOOL;
+    NoFlame : BOOL;
+    HiHiHotWaterT : BOOL;
+    FlueGasT : BOOL;
+    AirF : BOOL;
+    HiHiCombChambP : BOOL;
+    LoLoWaterF : BOOL;
+    LoLoGasP : BOOL;
+    UnableToBuildPnF : BOOL;
+    FalseFlame : BOOL;
+    NoPrimerFlame : BOOL;
+    NoWaterFlow : BOOL;
+    LoLoTankL : BOOL;
+    Bit18 : BOOL;
+    Bit19 : BOOL;
+    Bit20 : BOOL;
+    Bit21 : BOOL;
+    Bit22 : BOOL;
+    Bit23 : BOOL;
+    Bit24 : BOOL;
+    Bit25 : BOOL;
+    Bit26 : BOOL;
+    Bit27 : BOOL;
+    Bit28 : BOOL;
+    Bit29 : BOOL;
+    Bit30 : BOOL;
+    Bit31 : BOOL;
+  END_STRUCT;
+END_TYPE
+
+TYPE BOILER_IF
+  STRUCT
+    CMD : BOILER_CMD;
+    STA : STRUCT
+      Step : INT;
+      StepTime : DINT;
+      Ready : BOOL;
+      Operation : BOOL;
+      Alm : BOOL;
+      UnackAlm : BOOL;
+    END_STRUCT;
+    ALM : BOILER_ALM;
+    StopCtx : STRUCT
+      Step : INT;
+      ALM : BOILER_ALM;
+      StepTime : DINT;
+    END_STRUCT;
+  END_STRUCT;
+END_TYPE
+
+FUNCTION_BLOCK BOILER_CONTROL
+  VAR_INPUT
+    FirstCycle : BOOL;
+    ResetIn : BOOL;
+    ExtStop : BOOL;
+    SystemTimeDs : DINT; // System time in deciseconds
+  END_VAR
+  VAR_OUTPUT
+    IgniterOut : BOOL;
+    FDFanFWD : BOOL;
+    IDFanFWD : BOOL;
+    PumpFWD : BOOL;
+    ShutoffGasValve1Opn : BOOL;
+    ShutoffGasValve2Opn : BOOL;
+    SafetyValveOut : BOOL;
+  END_VAR
+  VAR_IN_OUT
+    CFG : BOILER_CFG;
+    PidIf : BOILER_PIDS_IF;
+    InterfaceIO : BOILER_IF;
+    FDFanVFDFault : DI_IF;
+    IDFanVFDFault : DI_IF;
+    PumpVFDFault : DI_IF;
+    FlameSensor : DI_IF;
+    // AI
+    HotWaterT : AI_IF;
+    FlueGasT : AI_IF;
+    AirF : AI_IF;
+    CombChambP : AI_IF;
+    WaterF : AI_IF;
+    GasP : AI_IF;
+    BufferTankL : AI_IF;
+  END_VAR
+  VAR_TEMP
+    Interface : BOILER_IF;
+    EmptyCMD : BOILER_CMD;
+    EmptyCMDW AT EmptyCMD : WORD;
+    TimeDiff : DINT;
+    NextStep : INT;
+    ALM : BOILER_ALM;
+    ALMDW AT ALM : DWORD;
+    (*TempIgniterOut : BOOL;
+    TempFDFanFWD : BOOL;
+    TempIDFanFWD : BOOL;
+    TempPumpFWD : BOOL;
+    TempShutoffGasValve1Opn : BOOL;
+    TempShutoffGasValve2Opn : BOOL;*)
+  END_VAR
+  VAR
+    PrevTimeDs : DINT;
+    Step : INT;
+    StepTime : DINT;
+    GasValveOpened : BOOL; // Marks if any gas valve opened
+    LastReset : BOOL;
+  END_VAR
+  CONST
+    InitSt := 0;
+    IdleSt := 1;
+    PrePurgeSt := 100;
+    ReducingAirFSt := 110;
+    IgnitionSt := 120;
+    StartingBurnerSt := 130;
+    RunningSt := 140;
+    PostPurgeSt := 150;
+    StoppedSt := 2;   
+  END_CONST
+  BEGIN
+    
+    // Initialing temp variables
+    ALMDW := 0;
+    EmptyCMDW := 0;
+    NextStep := 0;
+    (* TempIgniterOut := FALSE;
+    TempFDFanFWD := FALSE;
+    TempIDFanFWD := FALSE;
+    TempPumpFWD := FALSE;
+    TempShutoffGasValve1Opn := FALSE;
+    TempShutoffGasValve2Opn := FALSE; *)
+    
+    Interface := InterfaceIO;
+    InterfaceIO.CMD := EmptyCMD;
+    
+    // Resetting persistent variables
+    IF FirstCycle THEN
+      PrevTimeDs := SystemTimeDs;
+      Step := InitSt;
+      StepTime := 0;
+      Interface.CMD := EmptyCMD;
+    END_IF;
+    
+    // Calculating time
+    TimeDiff := SystemTimeDs - PrevTimeDs; 
+    PrevTimeDs := SystemTimeDs;
+    StepTime := StepTime + TimeDiff;
+    
+    // Resetting the alarm
+    IF (ResetIn AND NOT LastReset) OR Interface.CMD.Reset THEN
+      Interface.StopCtx.Step := InitSt;
+      Interface.StopCtx.ALM := ALM; // ALM must be 0 here!
+      Interface.StopCtx.StepTime := 0;
+      Interface.STA.UnackAlm := FALSE;
+      // Resetting alarms in AI inputs
+      HotWaterT.Ack := TRUE;
+      FlueGasT.Ack := TRUE;
+      AirF.Ack := TRUE;
+      CombChambP.Ack := TRUE;
+      WaterF.Ack := TRUE;
+      GasP.Ack := TRUE;
+      AirF.Ack := TRUE;
+    END_IF;
+    LastReset := ResetIn;
+    
+    // State independent alarms
+    // TODO: Add air flow alarm
+    ALM.ExtStop := ExtStop;
+    ALM.FDFanVFDFault := FDFanVFDFault.STA.Val;
+    ALM.IDFanVFDFault := IDFanVFDFault.STA.Val;
+    ALM.PumpVFDFault := PumpVFDFault.STA.Val;
+    ALM.HiHiHotWaterT := HotWaterT.STA.Alm;
+    ALM.NoWaterFlow := WaterF.STA.Alm;
+    ALM.AirF := AirF.STA.Alm;
+    ALM.LoLoGasP := GasP.STA.Alm;
+    ALM.NoFlame := FlameSensor.STA.Alm;
+    ALM.HiHiCombChambP := CombChambP.STA.Alm;
+    ALM.LoLoTankL := BufferTankL.STA.Alm;
+    // Check false readings
+    IF Step = IdleSt THEN
+      ALM.FalseFlame := FlameSensor.STA.Val;
+    END_IF;
+  
+    ALMDW := ALMDW AND CFG.AlmMask;
+    Interface.STA.Ready := (ALMDW = 0) AND NOT Interface.STA.UnackAlm;
+    
+    // Setting AFR
+    PidIf.CMD.AFR := CFG.AFR;
+    
+    // SM
+    // Evaluate transitions
+    NextStep := Step;
+    // Global transitions
+    IF ALMDW <> 0 AND Interface.STA.Operation THEN
+      IF ALM.ExtStop OR ALM.FDFanVFDFault OR NOT GasValveOpened THEN
+        NextStep := StoppedSt;
+      ELSE
+        NextStep := PostPurgeSt;
+      END_IF;
+    // Handling stop command
+    ELSIF Interface.CMD.Stop AND Interface.STA.Operation THEN
+      IF GasValveOpened = TRUE THEN
+        NextStep := PostPurgeSt;
+      ELSE 
+        NextStep := StoppedSt;
+      END_IF;
+    ELSE
+      CASE Step OF
+        InitSt: // Init
+          NextStep := IdleSt;
+        IdleSt: // Idle
+          IF Interface.CMD.Start AND NOT Interface.CMD.Stop AND Interface.STA.Ready THEN
+            NextStep := PrePurgeSt;
+          END_IF;
+        PrePurgeSt: // Pre-purge
+          IF StepTime >= CFG.PrePurgeSt.StepTime THEN
+            NextStep := ReducingAirFSt;
+          END_IF;
+        ReducingAirFSt: // Stabilizing the comb chamber pressure and air flow
+          IF CombChambP.STA.Val >= CFG.ReducePnFSt.PASP - 1.0 AND CombChambP.STA.Val <= CFG.ReducePnFSt.PASP + 1.0
+              AND AirF.STA.Val <= CFG.ReducePnFSt.FASP + 10.0 AND AirF.STA.Val >= CFG.ReducePnFSt.FASP - 10.0 THEN
+            NextStep := IgnitionSt;
+          ELSIF StepTime >= CFG.ReducePnFSt.MaxStepTime THEN
+            ALM.UnableToBuildPnF := TRUE;
+            ALMDW := ALMDW AND CFG.AlmMask;
+            IF ALMDW <> 0 THEN
+              NextStep := StoppedSt;
+            END_IF;
+          END_IF; 
+        IgnitionSt: // Ignition
+          IF StepTime >= CFG.IgnitionSt.MaxStepTime THEN    
+            IF FlameSensor.STA.Val THEN
+              NextStep := StartingBurnerSt;
+            ELSE
+              ALM.NoPrimerFlame := TRUE;
+              ALMDW := ALMDW AND CFG.AlmMask;
+              IF ALMDW <> 0 THEN
+                NextStep := PostPurgeSt;
+              END_IF;
+            END_IF; 
+          END_IF;
+        StartingBurnerSt: // Start the main burner
+          IF StepTime >= CFG.BurningSt.StepTime THEN
+            NextStep := RunningSt;
+          END_IF;
+        RunningSt: // Running
+          ;
+        PostPurgeSt: // Post-purge
+          IF StepTime >= CFG.PostPurgeSt.StepTime THEN
+            NextStep := StoppedSt;
+          END_IF;
+        StoppedSt: // Stopped
+          IF Interface.CMD.Reset THEN
+            NextStep := IdleSt;
+          END_IF;
+      ELSE
+        ALM.NextStepErr := TRUE;
+        NextStep := StoppedSt;
+      END_CASE;   
+    END_IF;
+      
+    // Handle transitions
+    IF NextStep <> Step THEN
+      // Exit actions
+      CASE Step OF
+        InitSt:;
+      END_CASE;
+      // Entry actions
+      CASE NextStep OF 
+        PostPurgeSt, StoppedSt:
+          // Handling alarms
+          IF ALMDW <> 0 THEN
+            Interface.StopCtx.Step := Step;
+            Interface.StopCtx.ALM := ALM;
+            Interface.StopCtx.StepTime := StepTime;
+            Interface.STA.UnackAlm := TRUE; 
+          END_IF;
+      END_CASE;    
+      // Commit the transition
+      Step := NextStep;
+      StepTime := 0;
+    END_IF;
+    
+    // Full auto operation state actions
+    CASE Step OF
+      InitSt: // Init
+      ;
+      IdleSt: // Idle
+        ;
+      PrePurgeSt: // Pre-purge
+        FDFanFWD := TRUE;
+        IDFanFWD := TRUE;
+        PidIf.CMD.CombChambPCCMD.ManOn := TRUE;
+        PidIf.CMD.CombChambPCCMD.MSP := 700;
+        PidIf.CMD.AirFCCMD.ManOn := TRUE;
+        PidIf.CMD.AirFCCMD.MSP := 700;
+        PumpFWD := TRUE;
+        PidIf.CMD.WaterFCCMD := CFG.RunSt.WaterFC;
+        WaterF.SuppressAlm := FALSE;
+      ReducingAirFSt: // Reducing the comb chamber pressure and air flow
+        PidIf.CMD.CombChambPCCMD.ManOn := FALSE;
+        PidIf.CMD.CombChambPCCMD.SP := CFG.ReducePnFSt.PASP;
+        PidIf.CMD.AirFCCMD.CascadeOff := TRUE;
+        PidIf.CMD.AirFCCMD.ManOn := FALSE;
+        PidIf.CMD.AirFCCMD.SP := CFG.ReducePnFSt.FASP;
+      IgnitionSt: // Ignition
+        ShutoffGasValve1Opn := TRUE;
+        IgniterOut := TRUE;
+        SafetyValveOut := TRUE;
+        AirF.SuppressAlm := FALSE;
+      StartingBurnerSt: // Start the main burner
+        ShutoffGasValve2Opn := TRUE;
+        PidIf.CMD.AirFCCMD := CFG.RunSt.AirFC;
+        PidIf.CMD.HotWaterTCCMD := CFG.RunSt.HotWaterTC;
+        PidIf.CMD.FlueGasTCCMD := CFG.RunSt.FlueGasTC;
+        FlameSensor.SuppressAlm := FALSE;
+      RunningSt: // Running
+        IgniterOut := FALSE;
+        PidIf.CMD.AirFCCMD := CFG.RunSt.AirFC;
+        PidIf.CMD.HotWaterTCCMD := CFG.RunSt.HotWaterTC;
+        PidIf.CMD.FlueGasTCCMD := CFG.RunSt.FlueGasTC;
+        PidIf.CMD.CombChambPCCMD := CFG.RunSt.CombChambPC;
+        PidIf.CMD.WaterFCCMD := CFG.RunSt.WaterFC;
+        CombChambP.SuppressAlm := FALSE;
+      PostPurgeSt: // Post-purging
+        PidIf.CMD.HotWaterTCCMD.ManOn := TRUE;
+        PidIf.CMD.HotWaterTCCMD.MSP := 0.0;
+        PidIf.CMD.FlueGasTCCMD.ManOn := FALSE;
+        PidIf.CMD.FlueGasTCCMD.MSP := 0.0;
+        ShutoffGasValve1Opn := FALSE;
+        ShutoffGasValve2Opn := FALSE;
+        SafetyValveOut := FALSE;
+        PidIf.CMD.CombChambPCCMD.ManOn := TRUE;
+        PidIf.CMD.CombChambPCCMD.MSP := 700;
+        PidIf.CMD.AirFCCMD.ManOn := TRUE;
+        PidIf.CMD.AirFCCMD.MSP := 700;
+        FlameSensor.SuppressAlm := TRUE;
+      StoppedSt: // Stopped
+        ;
+    END_CASE;
+    
+    IF ShutoffGasValve1Opn OR ShutoffGasValve2Opn THEN
+      GasValveOpened := TRUE;
+    END_IF;
+    
+    // Operation group actions
+    IF Step >= PrePurgeSt AND Step <= PostPurgeSt THEN
+      // Operation superstate
+      Interface.STA.Operation := TRUE;
+    ELSE
+      Interface.STA.Operation := FALSE;
+      // Safe state conditions
+      ShutoffGasValve1Opn := FALSE;
+      ShutoffGasValve2Opn := FALSE;
+      SafetyValveOut := FALSE;
+      IgniterOut := FALSE;
+      FDFanFWD := FALSE;
+      IDFanFWD := FALSE;
+      PumpFWD := FALSE;
+      PidIf.CMD.CombChambPCCMD.ManOn := TRUE;
+      PidIf.CMD.CombChambPCCMD.MSP := 0.0;
+      PidIf.CMD.AirFCCMD.ManOn := TRUE;
+      PidIf.CMD.AirFCCMD.MSP := 0.0;
+      PidIf.CMD.WaterFCCMD.ManOn := TRUE;
+      PidIf.CMD.WaterFCCMD.MSP := 0.0;
+      PidIf.CMD.HotWaterTCCMD.ManOn := TRUE;
+      PidIf.CMD.HotWaterTCCMD.MSP := 0.0;
+      PidIf.CMD.FlueGasTCCMD.ManOn := TRUE;
+      PidIf.CMD.FlueGasTCCMD.MSP := 0.0;
+      FlameSensor.SuppressAlm := TRUE;
+      CombChambP.SuppressAlm := TRUE;
+      AirF.SuppressAlm := TRUE;
+      WaterF.SuppressAlm := TRUE;
+      GasValveOpened := FALSE;
+      StepTime := 0;
+    END_IF;
+    
+    Interface.STA.Step := Step;
+    Interface.STA.StepTime := StepTime;
+    Interface.STA.Alm := ALMDW <> 0;
+      
+    InterfaceIO.STA := Interface.STA;
+    InterfaceIO.ALM := ALM;
+    InterfaceIO.StopCtx := Interface.StopCtx;
+END_FUNCTION_BLOCK

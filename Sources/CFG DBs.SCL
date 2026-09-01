@@ -1,0 +1,651 @@
+DATA_BLOCK CFG_DB
+  STRUCT
+    Boiler1CFG : BOILER_CFG;
+    PidCFG1 : BOILER_PIDS_CFG;
+    BufferTankLC : PID_SIMPLE_CFG;
+    CircPumpPC : PID_SIMPLE_CFG;
+    BufferTankSP : PID_SIMPLE_CMD;
+    CircPumpSP : PID_SIMPLE_CMD;
+    // AI
+    HotWaterT1 : AI_CFG;
+    FlueGasT1 : AI_CFG;
+    AirF1 : AI_CFG;
+    CombChambP1 : AI_CFG;
+    WaterF1 : AI_CFG;
+    GasP1 : AI_CFG;
+    GasF1 : AI_CFG;
+    GasT1 : AI_CFG;
+    HotAirT1 : AI_CFG;
+    HotAirP1 : AI_CFG;
+    FDFanPV1 : AI_CFG;
+    IDFanPV1 : AI_CFG;
+    PumpPV1 : AI_CFG;
+    AmbientT1 : AI_CFG;
+    InputWaterT1 : AI_CFG;
+    BufferTankL : AI_CFG;
+    CircPumpP1 : AI_CFG;
+    CircPumpPV1 : AI_CFG;
+    // AO
+    ValvePosMV1 : AO_CFG;
+    FDFanSpMV1 : AO_CFG;
+    IDFanSpMV1 : AO_CFG;
+    PumpSpMV1 : AO_CFG;
+    BufferTankInVlvMV : AO_CFG;
+    CircPumpSpMV1 : AO_CFG;
+    // DI
+    FDFanVFDFault1 : DI_CFG;
+    IDFanVFDFault1 : DI_CFG;
+    PumpVFDFault1 : DI_CFG;
+    FlameSensor1 : DI_CFG;
+    CircPumpVFDFault1 : DI_CFG;
+    // DO
+    IgniterOut1 : DO_CFG;
+    FDFanFWD1 : DO_CFG;
+    IDFanFWD1 : DO_CFG;
+    PumpFWD1 : DO_CFG;
+    ShutoffGasValve1Opn1 : DO_CFG;
+    ShutoffGasValve2Opn1 : DO_CFG;
+    CircPumpFWD1 : DO_CFG;
+    SafetyValve1 : DO_CFG;
+  END_STRUCT
+  BEGIN
+  
+    Boiler1CFG.AlmMask := 16#FFFFFFFF;
+    Boiler1CFG.AFR := 10.0;
+    Boiler1CFG.PrePurgeSt.StepTime := L#300;
+    Boiler1CFG.ReducePnFSt.PASP := -8.0;
+    Boiler1CFG.ReducePnFSt.FASP := 50.0;
+    Boiler1CFG.ReducePnFSt.MaxStepTime := L#1200;
+    Boiler1CFG.IgnitionSt.MaxStepTime := L#50;
+    Boiler1CFG.BurningSt.StepTime := L#100;
+    Boiler1CFG.RunSt.HotWaterTC.SP := 80.0;
+    Boiler1CFG.RunSt.HotWaterTC.MSP := 300.0;
+    Boiler1CFG.RunSt.HotWaterTC.ManOn := FALSE;
+    Boiler1CFG.RunSt.HotWaterTC.CascadeOff := FALSE;
+    Boiler1CFG.RunSt.FlueGasTC.SP := 300.0;
+    Boiler1CFG.RunSt.FlueGasTC.MSP := 0.0;
+    Boiler1CFG.RunSt.FlueGasTC.ManOn := FALSE;
+    Boiler1CFG.RunSt.FlueGasTC.CascadeOff := FALSE;
+    Boiler1CFG.RunSt.AirFC.SP := 500.0;
+    Boiler1CFG.RunSt.AirFC.MSP := 100.0;
+    Boiler1CFG.RunSt.AirFC.ManOn := FALSE;
+    Boiler1CFG.RunSt.AirFC.CascadeOff := FALSE;
+    Boiler1CFG.RunSt.WaterFC.SP := 50.0;
+    Boiler1CFG.RunSt.WaterFC.MSP := 500.0;
+    Boiler1CFG.RunSt.WaterFC.ManOn := FALSE;
+    Boiler1CFG.RunSt.WaterFC.CascadeOff := FALSE;
+    Boiler1CFG.RunSt.CombChambPC.SP := -15.0;
+    Boiler1CFG.RunSt.CombChambPC.MSP := 500.0;
+    Boiler1CFG.RunSt.CombChambPC.ManOn := FALSE;
+    Boiler1CFG.RunSt.CombChambPC.CascadeOff := FALSE;
+    Boiler1CFG.PostPurgeSt.StepTime := L#300;
+    
+    BufferTankLC.CYCLE := L#100;
+    BufferTankLC.GAIN := 8.18; // IN: REAL
+    BufferTankLC.TI := L#56000; // IN: TIME
+    BufferTankLC.TD := L#3500; // IN: TIME
+    BufferTankLC.DEADB_W := 0.1; // IN: REAL
+    BufferTankLC.LMN_HLM := 100.0; // IN: REAL
+    BufferTankLC.LMN_LLM := 0.0; // IN: REAL
+    
+    CircPumpPC.CYCLE := L#100;
+    CircPumpPC.GAIN := 200.0; // IN: REAL
+    CircPumpPC.TI := L#10285; // IN: TIME
+    CircPumpPC.TD := L#1860; // IN: TIME
+    CircPumpPC.DEADB_W := 0.1; // IN: REAL
+    CircPumpPC.LMN_HLM := 1000.0; // IN: REAL
+    CircPumpPC.LMN_LLM := 0.0; // IN: REAL
+    
+    BufferTankSP.SP := 80.0; // Auto SP
+    BufferTankSP.MSP := 20.0; // Manual SP
+    BufferTankSP.ManOn := FALSE; // Manual mode on
+    BufferTankSP.CascadeOff := TRUE;
+    
+    CircPumpSP.SP := 6.0; // Auto SP
+    CircPumpSP.MSP := 100.0; // Manual SP
+    CircPumpSP.ManOn := FALSE; // Manual mode on
+    CircPumpSP.CascadeOff := TRUE;
+    
+    // AI
+    //HotWaterT1.Bipolar : BOOL;
+    //HotWaterT1.Sim : BOOL;
+    //HotWaterT1.Force : BOOL;
+    HotWaterT1.LoEn := TRUE;
+    HotWaterT1.LoLoEn := TRUE;
+    HotWaterT1.HiEn := TRUE;
+    HotWaterT1.HiHiEn := TRUE;
+    HotWaterT1.OutOfSer := FALSE; // Alarm and warning out of service
+    //HotWaterT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    HotWaterT1.LoLim := -50.0;
+    HotWaterT1.HiLim := 120.0;
+    //HotWaterT1.Cutoff : REAL; // Zero scale cutoff
+    HotWaterT1.Lo := 5.0;
+    HotWaterT1.LoLo := 1.0;
+    HotWaterT1.Hi := 95.0;
+    HotWaterT1.HiHi := 100.0;
+    //HotWaterT1.ForceVal : REAL;
+    HotWaterT1.SampleTime := 100;
+    HotWaterT1.FilterTime := 2000.0;
+    HotWaterT1.AlarmDelay := L#2000;
+    HotWaterT1.WarningDelay := L#2000;
+    HotWaterT1.MinAlarmTime := L#2000;
+    HotWaterT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //FlueGasT1.Bipolar : BOOL;
+    //FlueGasT1.Sim : BOOL;
+    //FlueGasT1.Force : BOOL;
+    FlueGasT1.LoEn := TRUE;
+    FlueGasT1.LoLoEn := TRUE;
+    FlueGasT1.HiEn := TRUE;
+    FlueGasT1.HiHiEn := TRUE;
+    FlueGasT1.OutOfSer := TRUE; // Alarm and warning out of service
+    //FlueGasT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    FlueGasT1.LoLim := -50.0;
+    FlueGasT1.HiLim := 850.0;
+    //FlueGasT1.Cutoff : REAL; // Zero scale cutoff
+    FlueGasT1.Lo := 5.0;
+    FlueGasT1.LoLo := 1.0;
+    FlueGasT1.Hi := 95.0;
+    FlueGasT1.HiHi := 100.0;
+    //FlueGasT1.ForceVal : REAL;
+    FlueGasT1.SampleTime := 100;
+    FlueGasT1.FilterTime := 2000.0;
+    FlueGasT1.AlarmDelay := L#2000;
+    FlueGasT1.WarningDelay := L#2000;
+    FlueGasT1.MinAlarmTime := L#2000;
+    FlueGasT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //AirF1.Bipolar : BOOL;
+    //AirF1.Sim : BOOL;
+    //AirF1.Force : BOOL;
+    AirF1.LoEn := TRUE;
+    AirF1.LoLoEn := TRUE;
+    AirF1.HiEn := TRUE;
+    AirF1.HiHiEn := TRUE;
+    AirF1.OutOfSer := TRUE; // Alarm and warning out of service
+    //AirF1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    AirF1.LoLim := 0.0;
+    AirF1.HiLim := 2000.0;
+    //AirF1.Cutoff : REAL; // Zero scale cutoff
+    AirF1.Lo := 5.0;
+    AirF1.LoLo := 1.0;
+    AirF1.Hi := 95.0;
+    AirF1.HiHi := 100.0;
+    //AirF1.ForceVal : REAL;
+    AirF1.SampleTime := 100;
+    AirF1.FilterTime := 2000.0;
+    AirF1.AlarmDelay := L#10000;
+    AirF1.WarningDelay := L#2000;
+    AirF1.MinAlarmTime := L#2000;
+    AirF1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //CombChambP1.Bipolar : BOOL;
+    //CombChambP1.Sim : BOOL;
+    //CombChambP1.Force : BOOL;
+    CombChambP1.LoEn := FALSE;
+    CombChambP1.LoLoEn := FALSE;
+    CombChambP1.HiEn := FALSE;
+    CombChambP1.HiHiEn := TRUE;
+    CombChambP1.OutOfSer := FALSE; // Alarm and warning out of service
+    //CombChambP1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    CombChambP1.LoLim := -40.0;
+    CombChambP1.HiLim := 40.0;
+    //CombChambP1.Cutoff : REAL; // Zero scale cutoff
+    CombChambP1.Lo := 0.0;
+    CombChambP1.LoLo := 0.0;
+    CombChambP1.Hi := 0.0;
+    CombChambP1.HiHi := -5.0;
+    //CombChambP1.ForceVal : REAL;
+    CombChambP1.SampleTime := 100;
+    CombChambP1.FilterTime := 2000.0;
+    CombChambP1.AlarmDelay := L#10000;
+    CombChambP1.WarningDelay := L#2000;
+    CombChambP1.MinAlarmTime := L#2000;
+    CombChambP1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //WaterF1.Bipolar : BOOL;
+    //WaterF1.Sim : BOOL;
+    //WaterF1.Force : BOOL;
+    WaterF1.LoEn := FALSE;
+    WaterF1.LoLoEn := TRUE;
+    WaterF1.HiEn := FALSE;
+    WaterF1.HiHiEn := FALSE;
+    WaterF1.OutOfSer := FALSE; // Alarm and warning out of service
+    //WaterF1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    WaterF1.LoLim := 0.0;
+    WaterF1.HiLim := 2000.0;
+    //WaterF1.Cutoff : REAL; // Zero scale cutoff
+    WaterF1.Lo := 3.0;
+    WaterF1.LoLo := 3.0;
+    WaterF1.Hi := 95.0;
+    WaterF1.HiHi := 100.0;
+    //WaterF1.ForceVal : REAL;
+    WaterF1.SampleTime := 100;
+    WaterF1.FilterTime := 2000.0;
+    WaterF1.AlarmDelay := L#15000;
+    WaterF1.WarningDelay := L#2000;
+    WaterF1.MinAlarmTime := L#2000;
+    WaterF1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //GasP1.Bipolar : BOOL;
+    //GasP1.Sim : BOOL;
+    //GasP1.Force : BOOL;
+    GasP1.LoEn := TRUE;
+    GasP1.LoLoEn := TRUE;
+    GasP1.HiEn := FALSE;
+    GasP1.HiHiEn := FALSE;
+    GasP1.OutOfSer := FALSE; // Alarm and warning out of service
+    //GasP1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    GasP1.LoLim := 0.0;
+    GasP1.HiLim := 150000.0;
+    //GasP1.Cutoff : REAL; // Zero scale cutoff
+    GasP1.Lo := 105000.0;
+    GasP1.LoLo := 104000.0;
+    GasP1.Hi := 95.0;
+    GasP1.HiHi := 100.0;
+    //GasP1.ForceVal : REAL;
+    GasP1.SampleTime := 100;
+    GasP1.FilterTime := 2000.0;
+    GasP1.AlarmDelay := L#5000;
+    GasP1.WarningDelay := L#2000;
+    GasP1.MinAlarmTime := L#2000;
+    GasP1.AlarmHyst := 500.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //GasF1.Bipolar : BOOL;
+    //GasF1.Sim : BOOL;
+    //GasF1.Force : BOOL;
+    GasF1.LoEn := TRUE;
+    GasF1.LoLoEn := TRUE;
+    GasF1.HiEn := TRUE;
+    GasF1.HiHiEn := TRUE;
+    GasF1.OutOfSer := TRUE; // Alarm and warning out of service
+    //GasF1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    GasF1.LoLim := 0.0;
+    GasF1.HiLim := 150.0;
+    //GasF1.Cutoff : REAL; // Zero scale cutoff
+    GasF1.Lo := 5.0;
+    GasF1.LoLo := 1.0;
+    GasF1.Hi := 95.0;
+    GasF1.HiHi := 100.0;
+    //GasF1.ForceVal : REAL;
+    GasF1.SampleTime := 100;
+    GasF1.FilterTime := 2000.0;
+    GasF1.AlarmDelay := L#10000;
+    GasF1.WarningDelay := L#2000;
+    GasF1.MinAlarmTime := L#2000;
+    GasF1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //GasT1.Bipolar : BOOL;
+    //GasT1.Sim : BOOL;
+    //GasT1.Force : BOOL;
+    GasT1.LoEn := TRUE;
+    GasT1.LoLoEn := TRUE;
+    GasT1.HiEn := TRUE;
+    GasT1.HiHiEn := TRUE;
+    GasT1.OutOfSer := TRUE; // Alarm and warning out of service
+    //GasT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    GasT1.LoLim := -50.0;
+    GasT1.HiLim := 120.0;
+    //GasT1.Cutoff : REAL; // Zero scale cutoff
+    GasT1.Lo := 5.0;
+    GasT1.LoLo := 1.0;
+    GasT1.Hi := 95.0;
+    GasT1.HiHi := 100.0;
+    //GasT1.ForceVal : REAL;
+    GasT1.SampleTime := 100;
+    GasT1.FilterTime := 2000.0;
+    GasT1.AlarmDelay := L#2000;
+    GasT1.WarningDelay := L#2000;
+    GasT1.MinAlarmTime := L#2000;
+    GasT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //HotAirT1.Bipolar : BOOL;
+    //HotAirT1.Sim : BOOL;
+    //HotAirT1.Force : BOOL;
+    HotAirT1.LoEn := TRUE;
+    HotAirT1.LoLoEn := TRUE;
+    HotAirT1.HiEn := TRUE;
+    HotAirT1.HiHiEn := TRUE;
+    HotAirT1.OutOfSer := TRUE; // Alarm and warning out of service
+    //HotAirT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    HotAirT1.LoLim := -50.0;
+    HotAirT1.HiLim := 500.0;
+    //HotAirT1.Cutoff : REAL; // Zero scale cutoff
+    HotAirT1.Lo := 5.0;
+    HotAirT1.LoLo := 1.0;
+    HotAirT1.Hi := 95.0;
+    HotAirT1.HiHi := 100.0;
+    //HotAirT1.ForceVal : REAL;
+    HotAirT1.SampleTime := 100;
+    HotAirT1.FilterTime := 2000.0;
+    HotAirT1.AlarmDelay := L#2000;
+    HotAirT1.WarningDelay := L#2000;
+    HotAirT1.MinAlarmTime := L#2000;
+    HotAirT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //HotAirP1.Bipolar : BOOL;
+    //HotAirP1.Sim : BOOL;
+    //HotAirP1.Force : BOOL;
+    HotAirP1.LoEn := TRUE;
+    HotAirP1.LoLoEn := TRUE;
+    HotAirP1.HiEn := FALSE;
+    HotAirP1.HiHiEn := FALSE;
+    HotAirP1.OutOfSer := TRUE; // Alarm and warning out of service
+    //HotAirP1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    HotAirP1.LoLim := 0.0;
+    HotAirP1.HiLim := 150000.0;
+    //HotAirP1.Cutoff : REAL; // Zero scale cutoff
+    HotAirP1.Lo := 105000.0;
+    HotAirP1.LoLo := 104000.0;
+    HotAirP1.Hi := 95.0;
+    HotAirP1.HiHi := 100.0;
+    //HotAirP1.ForceVal : REAL;
+    HotAirP1.SampleTime := 100;
+    HotAirP1.FilterTime := 2000.0;
+    HotAirP1.AlarmDelay := L#5000;
+    HotAirP1.WarningDelay := L#2000;
+    HotAirP1.MinAlarmTime := L#2000;
+    HotAirP1.AlarmHyst := 500.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //FDFanPV1.Bipolar : BOOL;
+    //FDFanPV1.Sim : BOOL;
+    //FDFanPV1.Force : BOOL;
+    FDFanPV1.LoEn := TRUE;
+    FDFanPV1.LoLoEn := TRUE;
+    FDFanPV1.HiEn := TRUE;
+    FDFanPV1.HiHiEn := TRUE;
+    FDFanPV1.OutOfSer := TRUE; // Alarm and warning out of service
+    //FDFanPV1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    FDFanPV1.LoLim := 0.0;
+    FDFanPV1.HiLim := 2000.0;
+    //FDFanPV1.Cutoff : REAL; // Zero scale cutoff
+    FDFanPV1.Lo := 5.0;
+    FDFanPV1.LoLo := 1.0;
+    FDFanPV1.Hi := 95.0;
+    FDFanPV1.HiHi := 100.0;
+    //FDFanPV1.ForceVal : REAL;
+    FDFanPV1.SampleTime := 100;
+    FDFanPV1.FilterTime := 2000.0;
+    FDFanPV1.AlarmDelay := L#2000;
+    FDFanPV1.WarningDelay := L#2000;
+    FDFanPV1.MinAlarmTime := L#2000;
+    FDFanPV1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //IDFanPV1.Bipolar : BOOL;
+    //IDFanPV1.Sim : BOOL;
+    //IDFanPV1.Force : BOOL;
+    IDFanPV1.LoEn := TRUE;
+    IDFanPV1.LoLoEn := TRUE;
+    IDFanPV1.HiEn := TRUE;
+    IDFanPV1.HiHiEn := TRUE;
+    IDFanPV1.OutOfSer := TRUE; // Alarm and warning out of service
+    //IDFanPV1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    IDFanPV1.LoLim := 0.0;
+    IDFanPV1.HiLim := 2000.0;
+    //IDFanPV1.Cutoff : REAL; // Zero scale cutoff
+    IDFanPV1.Lo := 5.0;
+    IDFanPV1.LoLo := 1.0;
+    IDFanPV1.Hi := 95.0;
+    IDFanPV1.HiHi := 100.0;
+    //IDFanPV1.ForceVal : REAL;
+    IDFanPV1.SampleTime := 100;
+    IDFanPV1.FilterTime := 2000.0;
+    IDFanPV1.AlarmDelay := L#2000;
+    IDFanPV1.WarningDelay := L#2000;
+    IDFanPV1.MinAlarmTime := L#2000;
+    IDFanPV1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //PumpPV1.Bipolar : BOOL;
+    //PumpPV1.Sim : BOOL;
+    //PumpPV1.Force : BOOL;
+    PumpPV1.LoEn := TRUE;
+    PumpPV1.LoLoEn := TRUE;
+    PumpPV1.HiEn := TRUE;
+    PumpPV1.HiHiEn := TRUE;
+    PumpPV1.OutOfSer := TRUE; // Alarm and warning out of service
+    //PumpPV1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    PumpPV1.LoLim := 0.0;
+    PumpPV1.HiLim := 2000.0;
+    //PumpPV1.Cutoff : REAL; // Zero scale cutoff
+    PumpPV1.Lo := 5.0;
+    PumpPV1.LoLo := 1.0;
+    PumpPV1.Hi := 95.0;
+    PumpPV1.HiHi := 100.0;
+    //PumpPV1.ForceVal : REAL;
+    PumpPV1.SampleTime := 100;
+    PumpPV1.FilterTime := 2000.0;
+    PumpPV1.AlarmDelay := L#2000;
+    PumpPV1.WarningDelay := L#2000;
+    PumpPV1.MinAlarmTime := L#2000;
+    PumpPV1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //AmbientT1.Bipolar : BOOL;
+    //AmbientT1.Sim : BOOL;
+    //AmbientT1.Force : BOOL;
+    AmbientT1.LoEn := TRUE;
+    AmbientT1.LoLoEn := TRUE;
+    AmbientT1.HiEn := TRUE;
+    AmbientT1.HiHiEn := TRUE;
+    AmbientT1.OutOfSer := TRUE; // Alarm and warning out of service
+    //AmbientT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    AmbientT1.LoLim := -50.0;
+    AmbientT1.HiLim := 120.0;
+    //AmbientT1.Cutoff : REAL; // Zero scale cutoff
+    AmbientT1.Lo := 5.0;
+    AmbientT1.LoLo := 1.0;
+    AmbientT1.Hi := 95.0;
+    AmbientT1.HiHi := 100.0;
+    //AmbientT1.ForceVal : REAL;
+    AmbientT1.SampleTime := 100;
+    AmbientT1.FilterTime := 2000.0;
+    AmbientT1.AlarmDelay := L#2000;
+    AmbientT1.WarningDelay := L#2000;
+    AmbientT1.MinAlarmTime := L#2000;
+    AmbientT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //InputWaterT1.Bipolar : BOOL;
+    //InputWaterT1.Sim : BOOL;
+    //InputWaterT1.Force : BOOL;
+    InputWaterT1.LoEn := TRUE;
+    InputWaterT1.LoLoEn := TRUE;
+    InputWaterT1.HiEn := TRUE;
+    InputWaterT1.HiHiEn := TRUE;
+    InputWaterT1.OutOfSer := TRUE; // Alarm and warning out of service
+    //InputWaterT1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    InputWaterT1.LoLim := -50.0;
+    InputWaterT1.HiLim := 120.0;
+    //InputWaterT1.Cutoff : REAL; // Zero scale cutoff
+    InputWaterT1.Lo := 5.0;
+    InputWaterT1.LoLo := 1.0;
+    InputWaterT1.Hi := 95.0;
+    InputWaterT1.HiHi := 100.0;
+    //InputWaterT1.ForceVal : REAL;
+    InputWaterT1.SampleTime := 100;
+    InputWaterT1.FilterTime := 2000.0;
+    InputWaterT1.AlarmDelay := L#2000;
+    InputWaterT1.WarningDelay := L#2000;
+    InputWaterT1.MinAlarmTime := L#2000;
+    InputWaterT1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+    
+    //BufferTankL.Bipolar : BOOL;
+    //BufferTankL.Sim : BOOL;
+    //BufferTankL.Force : BOOL;
+    BufferTankL.LoEn := TRUE;
+    BufferTankL.LoLoEn := TRUE;
+    BufferTankL.HiEn := TRUE;
+    BufferTankL.HiHiEn := TRUE;
+    BufferTankL.OutOfSer := TRUE; // Alarm and warning out of service
+    //BufferTankL.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    BufferTankL.LoLim := 0.0;
+    BufferTankL.HiLim := 150.0;
+    //BufferTankL.Cutoff : REAL; // Zero scale cutoff
+    BufferTankL.Lo := 5.0;
+    BufferTankL.LoLo := 1.0;
+    BufferTankL.Hi := 95.0;
+    BufferTankL.HiHi := 100.0;
+    //BufferTankL.ForceVal : REAL;
+    BufferTankL.SampleTime := 100;
+    BufferTankL.FilterTime := 2000.0;
+    BufferTankL.AlarmDelay := L#2000;
+    BufferTankL.WarningDelay := L#2000;
+    BufferTankL.MinAlarmTime := L#2000;
+    BufferTankL.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition
+
+    //CircPumpP1.Bipolar : BOOL;
+    //CircPumpP1.Sim : BOOL;
+    //CircPumpP1.Force : BOOL;
+    CircPumpP1.LoEn := TRUE;
+    CircPumpP1.LoLoEn := TRUE;
+    CircPumpP1.HiEn := TRUE;
+    CircPumpP1.HiHiEn := TRUE;
+    CircPumpP1.OutOfSer := TRUE; // Alarm and warning out of service
+    //CircPumpP1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    CircPumpP1.LoLim := 0.0;
+    CircPumpP1.HiLim := 10.0;
+    //CircPumpP1.Cutoff : REAL; // Zero scale cutoff
+    CircPumpP1.Lo := 5.0;
+    CircPumpP1.LoLo := 1.0;
+    CircPumpP1.Hi := 95.0;
+    CircPumpP1.HiHi := 100.0;
+    //CircPumpP1.ForceVal : REAL;
+    CircPumpP1.SampleTime := 100;
+    CircPumpP1.FilterTime := 2000.0;
+    CircPumpP1.AlarmDelay := L#2000;
+    CircPumpP1.WarningDelay := L#2000;
+    CircPumpP1.MinAlarmTime := L#2000;
+    CircPumpP1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition    
+    
+    //CircPumpPV1.Bipolar : BOOL;
+    //CircPumpPV1.Sim : BOOL;
+    //CircPumpPV1.Force : BOOL;
+    CircPumpPV1.LoEn := TRUE;
+    CircPumpPV1.LoLoEn := TRUE;
+    CircPumpPV1.HiEn := TRUE;
+    CircPumpPV1.HiHiEn := TRUE;
+    CircPumpPV1.OutOfSer := TRUE; // Alarm and warning out of service
+    //CircPumpPV1.AutoAck : BOOL;  // Automatic acknowledge of wrn and alm
+    CircPumpPV1.LoLim := 0.0;
+    CircPumpPV1.HiLim := 2000.0;
+    //CircPumpPV1.Cutoff : REAL; // Zero scale cutoff
+    CircPumpPV1.Lo := 5.0;
+    CircPumpPV1.LoLo := 1.0;
+    CircPumpPV1.Hi := 95.0;
+    CircPumpPV1.HiHi := 100.0;
+    //CircPumpPV1.ForceVal : REAL;
+    CircPumpPV1.SampleTime := 100;
+    CircPumpPV1.FilterTime := 2000.0;
+    CircPumpPV1.AlarmDelay := L#2000;
+    CircPumpPV1.WarningDelay := L#2000;
+    CircPumpPV1.MinAlarmTime := L#2000;
+    CircPumpPV1.AlarmHyst := 1.0; // Hysteresis to disabling alarm/wrn condition  
+    
+    // AO
+    ValvePosMV1.HiLim := 100.0;
+    ValvePosMV1.LoLim := 0.0;
+    //ValvePosMV1.ForceVal := ;
+    //ValvePosMV1.SafeVal : INT;
+    //ValvePosMV1.Bipolar : BOOL; //Bipolar output
+    //ValvePosMV1.Force : BOOL;
+    //ValvePosMV1.Sim : BOOL;
+    
+    FDFanSpMV1.HiLim := 1000.0;
+    FDFanSpMV1.LoLim := 0.0;
+    //FDFanSpMV1.ForceVal := ;
+    //FDFanSpMV1.SafeVal : INT;
+    //FDFanSpMV1.Bipolar : BOOL; //Bipolar output
+    //FDFanSpMV1.Force : BOOL;
+    //FDFanSpMV1.Sim : BOOL;
+    
+    IDFanSpMV1.HiLim := 1000.0;
+    IDFanSpMV1.LoLim := 0.0;
+    //IDFanSpMV1.ForceVal := ;
+    //IDFanSpMV1.SafeVal : INT;
+    //IDFanSpMV1.Bipolar : BOOL; //Bipolar output
+    //IDFanSpMV1.Force : BOOL;
+    //IDFanSpMV1.Sim : BOOL;
+    
+    PumpSpMV1.HiLim := 1000.0;
+    PumpSpMV1.LoLim := 0.0;
+    //PumpSpMV1.ForceVal := ;
+    //PumpSpMV1.SafeVal : INT;
+    //PumpSpMV1.Bipolar : BOOL; //Bipolar output
+    //PumpSpMV1.Force : BOOL;
+    //PumpSpMV1.Sim : BOOL;
+    
+    BufferTankInVlvMV.HiLim := 100.0;
+    BufferTankInVlvMV.LoLim := 0.0;
+    //BufferTankInVlvMV.ForceVal := ;
+    //BufferTankInVlvMV.SafeVal : INT;
+    //BufferTankInVlvMV.Bipolar : BOOL; //Bipolar output
+    //BufferTankInVlvMV.Force : BOOL;
+    //BufferTankInVlvMV.Sim : BOOL;
+
+    CircPumpSpMV1.HiLim := 1000.0;
+    CircPumpSpMV1.LoLim := 0.0;
+    //CircPumpSpMV1.ForceVal := ;
+    //CircPumpSpMV1.SafeVal : INT;
+    //CircPumpSpMV1.Bipolar : BOOL; //Bipolar output
+    //CircPumpSpMV1.Force : BOOL;
+    //CircPumpSpMV1.Sim : BOOL;
+    
+    // DI
+    FDFanVFDFault1.Invert := TRUE;
+    //FDFanVFDFault1.Sim : BOOL; // Simulation
+    //FDFanVFDFault1.Force : BOOL;
+    FDFanVFDFault1.OutOfSer := TRUE; // Out of service alarm
+    //FDFanVFDFault1.AutoAck : BOOL;
+    FDFanVFDFault1.AlarmSP := TRUE;
+    //FDFanVFDFault1.ForceVal : BOOL;
+    FDFanVFDFault1.MinOnTime := L#1000;
+    FDFanVFDFault1.MinOffTime := L#2000;
+    FDFanVFDFault1.AlarmDelayTime := L#1000;
+    FDFanVFDFault1.MinAlarmTime := L#2000; // ms
+    
+    IDFanVFDFault1.Invert := TRUE;
+    //IDFanVFDFault1.Sim : BOOL; // Simulation
+    //IDFanVFDFault1.Force : BOOL;
+    IDFanVFDFault1.OutOfSer := TRUE; // Out of service alarm
+    //IDFanVFDFault1.AutoAck : BOOL;
+    IDFanVFDFault1.AlarmSP := TRUE;
+    //IDFanVFDFault1.ForceVal : BOOL;
+    IDFanVFDFault1.MinOnTime := L#1000;
+    IDFanVFDFault1.MinOffTime := L#2000;
+    IDFanVFDFault1.AlarmDelayTime := L#1000;
+    IDFanVFDFault1.MinAlarmTime := L#2000; // ms
+    
+    PumpVFDFault1.Invert := TRUE;
+    //PumpVFDFault1.Sim : BOOL; // Simulation
+    //PumpVFDFault1.Force : BOOL;
+    PumpVFDFault1.OutOfSer := TRUE; // Out of service alarm
+    //PumpVFDFault1.AutoAck : BOOL;
+    PumpVFDFault1.AlarmSP := TRUE;
+    //PumpVFDFault1.ForceVal : BOOL;
+    PumpVFDFault1.MinOnTime := L#1000;
+    PumpVFDFault1.MinOffTime := L#2000;
+    PumpVFDFault1.AlarmDelayTime := L#1000;
+    PumpVFDFault1.MinAlarmTime := L#2000; // ms
+    
+    FlameSensor1.Invert := FALSE;
+    //FlameSensor1.Sim : BOOL; // Simulation
+    //FlameSensor1.Force : BOOL;
+    FlameSensor1.OutOfSer := FALSE; // Out of service alarm
+    //FlameSensor1.AutoAck : BOOL;
+    FlameSensor1.AlarmSP := FALSE;
+    //FlameSensor1.ForceVal : BOOL;
+    FlameSensor1.MinOnTime := L#1000;
+    FlameSensor1.MinOffTime := L#2000;
+    FlameSensor1.AlarmDelayTime := L#5000;
+    FlameSensor1.MinAlarmTime := L#2000; // ms  
+      
+    CircPumpVFDFault1.Invert := TRUE;
+    //CircPumpVFDFault1.Sim : BOOL; // Simulation
+    //CircPumpVFDFault1.Force : BOOL;
+    CircPumpVFDFault1.OutOfSer := TRUE; // Out of service alarm
+    //CircPumpVFDFault1.AutoAck : BOOL;
+    CircPumpVFDFault1.AlarmSP := TRUE;
+    //CircPumpVFDFault1.ForceVal : BOOL;
+    CircPumpVFDFault1.MinOnTime := L#1000;
+    CircPumpVFDFault1.MinOffTime := L#2000;
+    CircPumpVFDFault1.AlarmDelayTime := L#1000;
+    CircPumpVFDFault1.MinAlarmTime := L#2000; // ms  
+END_DATA_BLOCK

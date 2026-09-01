@@ -1,0 +1,52 @@
+DATA_BLOCK IF_DB
+  STRUCT
+    Boiler1IF : BOILER_IF;
+    PidIF1 : BOILER_PIDS_IF;
+    BufferTankLCOn : BOOL;
+    CircPumpPCOn : BOOL;
+    // AI
+    HotWaterT1 : AI_IF;
+    FlueGasT1 : AI_IF;
+    AirF1 : AI_IF;
+    CombChambP1 : AI_IF;
+    WaterF1 : AI_IF;
+    GasP1 : AI_IF;
+    GasF1 : AI_IF;
+    GasT1 : AI_IF;
+    HotAirT1 : AI_IF;
+    HotAirP1 : AI_IF;
+    FDFanPV1 : AI_IF;
+    IDFanPV1 : AI_IF;
+    PumpPV1 : AI_IF;
+    AmbientT1 : AI_IF;
+    InputWaterT1 : AI_IF;
+    BufferTankL : AI_IF;
+    CircPumpP1 : AI_IF;
+    CircPumpPV1 : AI_IF;
+    // AO
+    ValvePosMV1 : AO_STA;
+    FDFanSpMV1 : AO_STA;
+    IDFanSpMV1 : AO_STA;
+    PumpSpMV1 : AO_STA;
+    BufferTankInVlvMV : AO_STA;
+    CircPumpSpMV1 : AO_STA;
+    // DI
+    FDFanVFDFault1 : DI_IF;
+    IDFanVFDFault1 : DI_IF;
+    PumpVFDFault1 : DI_IF;
+    FlameSensor1 : DI_IF;
+    CircPumpVFDFault1 : DI_IF;
+    // DO
+    IgniterOut1 : DO_STA;
+    FDFanFWD1 : DO_STA;
+    IDFanFWD1 : DO_STA;
+    PumpFWD1 : DO_STA;
+    ShutoffGasValve1Opn1 : DO_STA;
+    ShutoffGasValve2Opn1 : DO_STA;
+    CircPumpFWD1 : DO_STA;
+    SafetyValve1 : DO_STA;
+    
+    BuffTankOutQSim : REAL;
+  END_STRUCT
+  BEGIN
+END_DATA_BLOCK

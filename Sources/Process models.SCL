@@ -1,0 +1,390 @@
+DATA_BLOCK PROCESS_MODEL_DELAYS
+  NON_RETAIN
+  STRUCT
+    GasPosToFlueGasT_DELAY : ARRAY[0..49] OF REAL;
+    GasPosToHotWaterT_DELAY : ARRAY[0..199] OF REAL;  
+    FlueGasTToAirT_DELAY : ARRAY[0..39] OF REAL; 
+    FeedPumpSToFeedF_DELAY : ARRAY[0..59] OF REAL; 
+    ExFanSToComChambP_DELAY : ARRAY[0..109] OF REAL;
+    InValvePToInQ_DELAY : ARRAY[0..49] OF REAL; // 460
+    SupplyPumpSToP_DELAY : ARRAY[0..19] OF REAL;
+  END_STRUCT
+  BEGIN
+END_DATA_BLOCK
+
+DATA_BLOCK MODEL_DB
+  BOILER_HOUSE_MODEL
+  BEGIN
+END_DATA_BLOCK
+
+FUNCTION_BLOCK BOILER_MODEL
+  // Represents approximate boiler model with limited processes
+  // interaction, each dependency either linear w/o delay or 
+  // apporoximated by first order time delay model
+  VAR_INPUT
+    AmbientT : REAL := 10.0;
+    GasValvePos : REAL; //  0-100%
+    InputFeedWaterT : REAL := 20.0;
+    BlowerSP : REAL;
+    ExhausterSP : REAL;
+    FeedPumpSP : REAL;
+    GasP : REAL;
+    ShutoffGasVlv1Opn : BOOL;
+    ShutoffGasVlv2Opn : BOOL;
+    BlowerFWD : BOOL;
+    ExhausterFWD : BOOL;
+    FeedPumpFWD : BOOL;
+    IgniterON : BOOL;
+    ExtFaultVFD : BOOL := TRUE;
+    FlameSensorFault : BOOL;
+    Reset : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    GasF : REAL;
+    AirF : REAL;
+    HotAirT : REAL;
+    HotAirP : REAL;
+    FlueGasT : REAL;
+    CombChambP : REAL;
+    HotWaterT : REAL;
+    WaterFeedF : REAL;
+    BlowerFanSpeed : REAL; // 0-1000rpm
+    ExhausterFanSpeed : REAL; // 0-1000rpm
+    WaterFeedPumpSpeed : REAL; // 0-1000rpm
+    BlowerFault : BOOL;
+    ExhausterFault : BOOL;
+    FeedPumpFault : BOOL;
+    FlameSensor : BOOL;
+  END_VAR
+  VAR_TEMP
+  END_VAR
+  VAR
+    GasFToFlueGasT : FOTD;
+    GasFToHotWaterT : FOTD;
+    FlueGasTToAirT : FOTD;
+    BlowerFanSpeedToAirF : FOTD;
+    FeedPumpSToFeedF : FOTD;
+    ExhaustFanSToComChambP : FOTD;
+    ShutoffGasValve1 : DELAY_INPUT_BOOL;
+    ShutoffGasValve2 : DELAY_INPUT_BOOL;
+    Igniter : DELAY_INPUT_BOOL;
+    NOSafetyValve : DELAY_INPUT_BOOL;
+    BlowerVFD : VFD_MOTOR_SIM;
+    ExhausterVFD : VFD_MOTOR_SIM;
+    FeedPumpVFD : VFD_MOTOR_SIM;
+  END_VAR
+  CONST
+  END_CONST
+  BEGIN
+    ShutoffGasValve1(
+      IN := ShutoffGasVlv1Opn,
+      OnDelayTime := 1000,
+      OffDelayTime := 1000
+    ); 
+    ShutoffGasValve2(
+      IN := ShutoffGasVlv2Opn,
+      OnDelayTime := 1000,
+      OffDelayTime := 1000
+    );
+    Igniter(
+      IN := IgniterOn AND ShutoffGasValve1.OUT,
+      OnDelayTime := 2000,
+      OffDelayTime := 3000
+    );
+    IF ShutoffGasValve1.OUT AND ShutoffGasValve2.OUT THEN
+       GasF := (GasValvePos * (GasP - 101325.0) / 6000.0) * (GasP / 101325.0) * (273.15/(AmbientT + 273.15)); //Normalized 
+    ELSE
+      GasF := 0.0;
+    END_IF;
+    FlameSensor := (Igniter.OUT OR GasF > 0.0) AND NOT FlameSensorFault;
+    
+    GasFToFlueGasT(
+      In := GasF,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 0, // Offset in DB to array
+      Size := 50, // Number of elements in the array
+      T := 20000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 5.0 // Gain of lag
+    );
+    FlueGasT := GasFToFlueGasT.Out + HotAirT;
+    
+    GasFToHotWaterT(
+      In := GasF,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 50 * 4, // Offset in DB to array
+      Size := 200, // Number of elements in the array
+      T := 60000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 0.9 // Gain of lag
+    );
+    //HotWaterT := GasFToHotWaterT.Out + InputFeedWaterT;
+    // Add interactivity from water flow, ignoring dynamics change
+    // Interactivity weighted 
+    // HotWaterT := GasFToHotWaterT.Out + InputFeedWaterT - 0.01 * WaterFeedF * GasFToHotWaterT.Out;
+    HotWaterT := GasFToHotWaterT.Out / (1.0 + (0.01 * WaterFeedF)) + InputFeedWaterT;
+    
+    FlueGasTToAirT(
+      In := FlueGasT,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 250 * 4, // Offset in DB to array
+      Size := 40, // Number of elements in the array
+      T := 10000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 0.2 // Gain of lag
+    );
+    HotAirT := FlueGasTToAirT.Out / (1.0 + (0.001 * BlowerFanSpeedToAirF.Out)) + AmbientT;
+        
+    BlowerVFD(
+      FWD := BlowerFWD,
+      SpeedSp := BlowerSP,
+      ExtFault := ExtFaultVFD
+    );
+    BlowerFanSpeed := BlowerVFD.SpeedPV;
+    BlowerFault := BlowerVFD.Fault;     
+    BlowerFanSpeedToAirF(
+      In := BlowerFanSpeed,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 0, // Offset in DB to array
+      Size := 0, // Number of elements in the array
+      T := 10000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 1.5 // Gain of lag
+    );
+    // Normalizing air flow
+    HotAirP := 101325.0 + BlowerFanSpeedToAirF.Out * 10.0; // This is rough value, just to simulate interactivity
+    AirF := BlowerFanSpeedToAirF.Out * (HotAirP / 101325.0) * (273.15/(HotAirT + 273.15));
+
+    FeedPumpVFD(
+      FWD := FeedPumpFWD,
+      SpeedSp := FeedPumpSP,
+      ExtFault := ExtFaultVFD
+    );
+    WaterFeedPumpSpeed := FeedPumpVFD.SpeedPV;
+    FeedPumpFault := FeedPumpVFD.Fault;     
+    FeedPumpSToFeedF(
+      In := WaterFeedPumpSpeed,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 290 * 4, // Offset in DB to array
+      Size := 60, // Number of elements in the array
+      T := 15000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 0.15 // Gain of lag
+    );
+    WaterFeedF := FeedPumpSToFeedF.Out;
+    
+    ExhausterVFD(
+      FWD := ExhausterFWD,
+      SpeedSp := ExhausterSP,
+      ExtFault := ExtFaultVFD
+    );
+    ExhausterFanSpeed := ExhausterVFD.SpeedPV;
+    ExhausterFault := ExhausterVFD.Fault; 
+    ExhaustFanSToComChambP(
+      In := ExhausterFanSpeed,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 350 * 4, // Offset in DB to array
+      Size := 110, // Number of elements in the array
+      T := 20000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 0.02 // Gain of lag
+    );
+    CombChambP := ExhaustFanSToComChambP.Out * -1;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK BUFFER_TANK_MODEL
+  // Model based on mass conservation principle.
+  // Model imitating input flow change as FOTD.
+  VAR_INPUT
+    InValvePos : REAL;
+    OutQ : REAL; // m^3/h
+    MaxVolume : REAL; // m^3
+    DeltaT : REAL; // s
+    RateGain : REAL;
+    Reset : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    CurVolume : REAL;
+    InQ : REAL; // m^3/h
+  END_VAR
+  VAR
+    InValvePToInQ : FOTD;   
+  END_VAR
+  CONST
+    Hour := 3600;
+  END_CONST
+  BEGIN
+    InValvePToInQ(
+      In := InValvePos,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 460 * 4, // Offset in DB to array
+      Size := 50, // Number of elements in the array
+      T := 4000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 1.0 // Gain of lag
+    );
+    InQ := InValvePToInQ.Out;
+    //CurVolume := CurVolume + (InQ - OutQ) * DeltaT / Hour;
+    CurVolume := LIMIT(
+      MN := 0.0,
+      IN := CurVolume + (InQ - OutQ) * RateGain * DeltaT / Hour,
+      MX := MaxVolume
+    );
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK BOILER_HOUSE_MODEL
+  VAR_INPUT
+    Reset : BOOL;
+    Boiler1Sim : BOOL := TRUE;
+    Boiler1FlameFault : BOOL ;
+    Boiler1VFDsExtFault : BOOL := TRUE;
+    BufferTankSim : BOOL := TRUE;
+    CircPumpSim : BOOL := TRUE;
+    AmbientT : REAL := 10.0;
+    BoilerInputwaterT : REAL := 45.0;
+    GasP : REAL := 107000.0;
+  END_VAR
+  VAR
+    Boiler : BOILER_MODEL;
+    BufferTank : BUFFER_TANK_MODEL;
+    CircPumpSToP : FOTD;
+    CircPumpVFD : VFD_MOTOR_SIM;
+  END_VAR
+  BEGIN
+    IF Boiler1Sim THEN
+      // AI
+      CFG_DB.HotWaterT1.Sim := TRUE;
+      CFG_DB.FlueGasT1.Sim := TRUE;
+      CFG_DB.AirF1.Sim := TRUE;
+      CFG_DB.CombChambP1.Sim := TRUE;
+      CFG_DB.WaterF1.Sim := TRUE;
+      CFG_DB.GasP1.Sim := TRUE;
+      CFG_DB.GasF1.Sim := TRUE;
+      CFG_DB.GasT1.Sim := TRUE;
+      CFG_DB.HotAirT1.Sim := TRUE;
+      CFG_DB.HotAirP1.Sim := TRUE;
+      CFG_DB.FDFanPV1.Sim := TRUE;
+      CFG_DB.IDFanPV1.Sim := TRUE;
+      CFG_DB.PumpPV1.Sim := TRUE;
+      CFG_DB.InputWaterT1.Sim := TRUE;
+      CFG_DB.AmbientT1.Sim := TRUE;
+      // AO
+      CFG_DB.ValvePosMV1.Sim := TRUE;
+      CFG_DB.FDFanSpMV1.Sim := TRUE;
+      CFG_DB.IDFanSpMV1.Sim := TRUE;
+      CFG_DB.PumpSpMV1.Sim := TRUE;
+      // DI
+      CFG_DB.FDFanVFDFault1.Sim := TRUE;
+      CFG_DB.IDFanVFDFault1.Sim := TRUE;
+      CFG_DB.PumpVFDFault1.Sim := TRUE;
+      CFG_DB.FlameSensor1.Sim := TRUE;
+      // DO
+      CFG_DB.IgniterOut1.Sim := TRUE;
+      CFG_DB.FDFanFWD1.Sim := TRUE;
+      CFG_DB.IDFanFWD1.Sim := TRUE;
+      CFG_DB.PumpFWD1.Sim := TRUE;
+      CFG_DB.ShutoffGasValve1Opn1.Sim := TRUE;
+      CFG_DB.ShutoffGasValve2Opn1.Sim := TRUE;
+    ELSE
+      // AI
+      CFG_DB.HotWaterT1.Sim := FALSE;
+      CFG_DB.FlueGasT1.Sim := FALSE;
+      CFG_DB.AirF1.Sim := FALSE;
+      CFG_DB.CombChambP1.Sim := FALSE;
+      CFG_DB.WaterF1.Sim := FALSE;
+      CFG_DB.GasP1.Sim := FALSE;
+      CFG_DB.GasF1.Sim := FALSE;
+      CFG_DB.GasT1.Sim := FALSE;
+      CFG_DB.HotAirT1.Sim := FALSE;
+      CFG_DB.HotAirP1.Sim := FALSE;
+      CFG_DB.FDFanPV1.Sim := FALSE;
+      CFG_DB.IDFanPV1.Sim := FALSE;
+      CFG_DB.PumpPV1.Sim := FALSE;
+      CFG_DB.InputWaterT1.Sim := FALSE;
+      CFG_DB.AmbientT1.Sim := FALSE;
+      // AO
+      CFG_DB.ValvePosMV1.Sim := FALSE;
+      CFG_DB.FDFanSpMV1.Sim := FALSE;
+      CFG_DB.IDFanSpMV1.Sim := FALSE;
+      CFG_DB.PumpSpMV1.Sim := FALSE;
+      // DI
+      CFG_DB.FDFanVFDFault1.Sim := FALSE;
+      CFG_DB.IDFanVFDFault1.Sim := FALSE;
+      CFG_DB.PumpVFDFault1.Sim := FALSE;
+      CFG_DB.FlameSensor1.Sim := FALSE;
+      // DO
+      CFG_DB.IgniterOut1.Sim := FALSE;
+      CFG_DB.FDFanFWD1.Sim := FALSE;
+      CFG_DB.IDFanFWD1.Sim := FALSE;
+      CFG_DB.PumpFWD1.Sim := FALSE;
+      CFG_DB.ShutoffGasValve1Opn1.Sim := FALSE;
+      CFG_DB.ShutoffGasValve2Opn1.Sim := FALSE;
+    END_IF;
+    Boiler(
+      EN := Boiler1Sim,
+      Reset := Reset,
+      InputFeedWaterT := BoilerInputwaterT,
+      AmbientT := AmbientT,
+      GasP := GasP,
+      ExtFaultVFD := Boiler1VFDsExtFault,
+      FlameSensorFault := Boiler1FlameFault
+    );
+    
+    IF BufferTankSim THEN
+      CFG_DB.BufferTankL.Sim := TRUE;
+      CFG_DB.BufferTankInVlvMV.Sim := TRUE;
+    ELSE
+      CFG_DB.BufferTankL.Sim := FALSE;
+      CFG_DB.BufferTankInVlvMV.Sim := FALSE;
+    END_IF;
+    
+    BufferTank(
+      EN := BufferTankSim,
+      Reset := Reset,
+      OutQ := IF_DB.BuffTankOutQSim, // m^3/h
+      MaxVolume := 100.0, // m^3
+      DeltaT := 0.1, // s
+      RateGain := 20.0
+    );
+      
+    IF CircPumpSim THEN
+      CFG_DB.CircPumpP1.Sim := TRUE;
+      CFG_DB.CircPumpPV1.Sim := TRUE;
+      CFG_DB.CircPumpSpMV1.Sim := TRUE;
+      CFG_DB.CircPumpVFDFault1.Sim := TRUE;
+      CFG_DB.CircPumpFWD1.Sim := TRUE;
+    ELSE
+      CFG_DB.CircPumpP1.Sim := FALSE;
+      CFG_DB.CircPumpPV1.Sim := FALSE;
+      CFG_DB.CircPumpSpMV1.Sim := FALSE;
+      CFG_DB.CircPumpVFDFault1.Sim := FALSE;
+      CFG_DB.CircPumpFWD1.Sim := FALSE;      
+    END_IF;
+    
+    CircPumpVFD(
+      ExtFault := Boiler1VFDsExtFault
+    );
+    CircPumpSToP(
+      EN := CircPumpSim,
+      In := CircPumpVFD.SpeedPV,
+      Reset := Reset, // Reset fills array with input
+      DBlock := PROCESS_MODEL_DELAYS, // DB containing array
+      Offset := 510 * 4, // Offset in DB to array
+      Size := 20, // Number of elements in the array
+      T := 12000.0, // Time constant of lag
+      DeltaT := 100, // Execution time interval
+      Gain := 0.01 // Gain of lag
+    );   
+END_FUNCTION_BLOCK
+
+(*FUNCTION MODEL : VOID
+  BEGIN
+  BOILER_HOUSE_MODEL.MODEL_DB();  
+END_FUNCTION *)

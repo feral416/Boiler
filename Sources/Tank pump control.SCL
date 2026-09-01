@@ -1,0 +1,142 @@
+FUNCTION_BLOCK TANK_LC
+  VAR_INPUT
+    FirstCycle : BOOL;
+    On : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    Out : REAL;
+  END_VAR
+  VAR_IN_OUT
+    CMD : PID_SIMPLE_CMD;
+    CFG : PID_SIMPLE_CFG;
+    Level : AI_IF;
+  END_VAR
+  VAR
+    BufferTankLC : CONT_C;
+  END_VAR
+  BEGIN
+    IF On THEN
+      BufferTankLC.MAN_ON := CMD.ManOn;
+      BufferTankLC.MAN := CMD.MSP;
+    ELSE 
+      BufferTankLC.MAN_ON := TRUE;
+      BufferTankLC.MAN := 0.0;
+    END_IF;
+    
+    BufferTankLC(
+      COM_RST := FirstCycle // IN: BOOL
+      //,MAN_ON := IF_DB.BufferTankLC.ManOn // IN: BOOL
+      //,PVPER_ON :=  // IN: BOOL
+      ,P_SEL := TRUE // IN: BOOL
+      ,I_SEL := TRUE // IN: BOOL
+      //,INT_HOLD :=  // IN: BOOL
+      //,I_ITL_ON :=  // IN: BOOL
+      ,D_SEL := TRUE // IN: BOOL
+      ,CYCLE := DINT_TO_TIME(CFG.CYCLE) // IN: TIME
+      ,SP_INT := CMD.SP // IN: REAL
+      ,PV_IN := Level.STA.Val // IN: REAL
+      //,PV_PER :=  // IN: WORD
+      //,MAN := IF_DB.BufferTankLC.MSP // IN: REAL
+      ,GAIN := CFG.GAIN // IN: REAL
+      ,TI := DINT_TO_TIME(CFG.TI) // IN: TIME
+      ,TD := DINT_TO_TIME(CFG.TD) // IN: TIME
+      //,TM_LAG :=  // IN: TIME
+      ,DEADB_W := CFG.DEADB_W // IN: REAL
+      ,LMN_HLM := CFG.LMN_HLM  // IN: REALA
+      ,LMN_LLM := CFG.LMN_LLM // IN: REAL
+      //,PV_FAC :=  // IN: REAL
+      //,PV_OFF :=  // IN: REAL
+      //,LMN_FAC :=  // IN: REAL
+      //,LMN_OFF :=  // IN: REAL
+      //,I_ITLVAL :=  // IN: REAL
+      //,DISV :=  // IN: REAL
+    );    
+    Out := BufferTankLC.LMN;   
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK CIRC_PUMP_PC
+  VAR_INPUT
+    FirstCycle : BOOL;
+    On : BOOL;
+    VFDFault : BOOL;
+  END_VAR
+  VAR_OUTPUT
+    PumpSpeedSP : REAL;
+    FWD : BOOL;
+  END_VAR
+  VAR_IN_OUT
+    Pressure : AI_IF;
+    Level : AI_IF;
+    CMD : PID_SIMPLE_CMD;
+    CFG : PID_SIMPLE_CFG;
+  END_VAR
+  VAR
+    CircPumpPC : CONT_C;
+    State : INT;
+  END_VAR
+  CONST
+    OffSt := 0;
+    ManOnSt := 1;
+    AutoOnSt := 2;
+  END_CONST
+  BEGIN
+    IF On THEN
+      IF CMD.ManOn THEN
+        State := ManOnSt;
+      ELSE
+        IF VFDFault OR Level.STA.Alm OR Level.STA.UnackAlm
+              OR Level.STA.Wrn OR Level.STA.UnackWrn THEN
+          State := OffSt;
+        ELSE
+          State := AutoOnSt;
+        END_IF;
+      END_IF;    
+    ELSE
+      State := OffSt;
+    END_IF;
+    
+    CASE State OF
+      OffSt:
+        CircPumpPC.MAN_ON := TRUE;
+        CircPumpPC.MAN := 0.0;
+        FWD := FALSE;
+      ManOnSt:
+        CircPumpPC.MAN_ON := TRUE;
+        CircPumpPC.MAN := CMD.MSP;
+        FWD := TRUE;
+      AutoOnSt:
+        CircPumpPC.MAN_ON := FALSE;
+        CircPumpPC.MAN := CMD.MSP;
+        FWD := TRUE;
+      END_CASE;
+      
+    CircPumpPC(
+      COM_RST := FirstCycle // IN: BOOL
+      //,MAN_ON := IF_DB.CircPumpPC.ManOn // IN: BOOL
+      //,PVPER_ON :=  // IN: BOOL
+      ,P_SEL := TRUE // IN: BOOL
+      ,I_SEL := TRUE // IN: BOOL
+      //,INT_HOLD :=  // IN: BOOL
+      //,I_ITL_ON :=  // IN: BOOL
+      ,D_SEL := TRUE // IN: BOOL
+      ,CYCLE := DINT_TO_TIME(CFG.CYCLE) // IN: TIME
+      ,SP_INT := CMD.SP // IN: REAL
+      ,PV_IN := Pressure.STA.Val // IN: REAL
+      //,PV_PER :=  // IN: WORD
+      //,MAN := IF_DB.CircPumpPC.MSP // IN: REAL
+      ,GAIN := CFG.GAIN // IN: REAL
+      ,TI := DINT_TO_TIME(CFG.TI) // IN: TIME
+      ,TD := DINT_TO_TIME(CFG.TD) // IN: TIME
+      //,TM_LAG :=  // IN: TIME
+      ,DEADB_W := CFG.DEADB_W // IN: REAL
+      ,LMN_HLM := CFG.LMN_HLM  // IN: REALA
+      ,LMN_LLM := CFG.LMN_LLM // IN: REAL
+      //,PV_FAC :=  // IN: REAL
+      //,PV_OFF :=  // IN: REAL
+      //,LMN_FAC :=  // IN: REAL
+      //,LMN_OFF :=  // IN: REAL
+      //,I_ITLVAL :=  // IN: REAL
+      //,DISV :=  // IN: REAL
+    );
+    PumpSpeedSP := CircPumpPC.LMN;  
+END_FUNCTION_BLOCK
