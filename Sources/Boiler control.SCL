@@ -431,12 +431,12 @@ FUNCTION_BLOCK BOILER_CONTROL
     // Evaluate transitions
     NextStep := Step;
     // Global transitions
-    IF ALMDW <> 0 AND Interface.STA.Operation THEN
-      IF ALM.ExtStop OR ALM.FDFanVFDFault OR NOT GasValveOpened THEN
-        NextStep := StoppedSt;
-      ELSE
-        NextStep := PostPurgeSt;
-      END_IF;
+    IF ALMDW <> 0 AND Interface.STA.Operation
+        AND (ALM.ExtStop OR ALM.FDFanVFDFault OR NOT GasValveOpened) THEN
+      NextStep := StoppedSt;
+    ELSIF ALMDW <> 0 AND Interface.STA.Operation
+        AND Step <> PostPurgeSt THEN
+      NextStep := PostPurgeSt;
     // Handling stop command
     ELSIF Interface.CMD.Stop AND Interface.STA.Operation THEN
       IF GasValveOpened = TRUE THEN
